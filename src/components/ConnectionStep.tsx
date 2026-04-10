@@ -19,12 +19,10 @@ export default function ConnectionStep({ onConnected }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Client credentials fields
+  // Client credentials
   const [domain, setDomain] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
 
-  // Username+password fields (shares clientId/clientSecret)
+  // Username + password
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginUrl, setLoginUrl] = useState('login.salesforce.com');
@@ -37,8 +35,8 @@ export default function ConnectionStep({ onConnected }: Props) {
     try {
       const body =
         method === 'client_credentials'
-          ? { method, domain, clientId, clientSecret }
-          : { method, clientId, clientSecret, username, password, loginUrl };
+          ? { method, domain }
+          : { method, username, password, loginUrl };
 
       const res = await fetch('/api/auth/connect', {
         method: 'POST',
@@ -64,11 +62,11 @@ export default function ConnectionStep({ onConnected }: Props) {
   }
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-md mx-auto">
       <div className="mb-7">
         <h2 className="text-2xl font-semibold text-sf-neutral-100 mb-1.5">Connect to Salesforce</h2>
         <p className="text-sf-neutral-70 text-sm leading-relaxed">
-          Authenticate with your Salesforce org to get started.
+          Choose how you want to authenticate with your org.
         </p>
       </div>
 
@@ -78,13 +76,13 @@ export default function ConnectionStep({ onConnected }: Props) {
           active={method === 'client_credentials'}
           onClick={() => { setMethod('client_credentials'); setError(null); }}
           label="Client Credentials"
-          desc="Connected App only"
+          desc="Service / integration user"
         />
         <MethodTab
           active={method === 'username_password'}
           onClick={() => { setMethod('username_password'); setError(null); }}
           label="Username + Password"
-          desc="User login flow"
+          desc="Named user login"
         />
       </div>
 
@@ -92,70 +90,29 @@ export default function ConnectionStep({ onConnected }: Props) {
 
         {/* ── Client Credentials ─────────────────────────────────────────── */}
         {method === 'client_credentials' && (
-          <>
-            <Field
-              label="Salesforce Domain"
-              hint={<>Without <code className="bg-sf-neutral-20 px-1 rounded">https://</code> — e.g. <code className="bg-sf-neutral-20 px-1 rounded">mycompany.my.salesforce.com</code></>}
-            >
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="mycompany.my.salesforce.com"
-                required
-                className={inputCls}
-              />
-            </Field>
-
-            <Field label="Consumer Key (Client ID)">
-              <input
-                type="text"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="3MVG9…"
-                required
-                className={`${inputCls} font-mono`}
-              />
-            </Field>
-
-            <Field label="Consumer Secret (Client Secret)">
-              <input
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder="••••••••••••••••"
-                required
-                className={`${inputCls} font-mono`}
-              />
-            </Field>
-          </>
+          <Field
+            label="Salesforce Domain"
+            hint={
+              <>
+                Without <code className="bg-sf-neutral-20 px-1 rounded">https://</code> — e.g.{' '}
+                <code className="bg-sf-neutral-20 px-1 rounded">mycompany.my.salesforce.com</code>
+              </>
+            }
+          >
+            <input
+              type="text"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="mycompany.my.salesforce.com"
+              required
+              className={inputCls}
+            />
+          </Field>
         )}
 
         {/* ── Username + Password ────────────────────────────────────────── */}
         {method === 'username_password' && (
           <>
-            <Field label="Consumer Key (Client ID)" hint="From your Connected App">
-              <input
-                type="text"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="3MVG9…"
-                required
-                className={`${inputCls} font-mono`}
-              />
-            </Field>
-
-            <Field label="Consumer Secret (Client Secret)" hint="From your Connected App">
-              <input
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder="••••••••••••••••"
-                required
-                className={`${inputCls} font-mono`}
-              />
-            </Field>
-
             <Field label="Salesforce Username">
               <input
                 type="email"
@@ -169,7 +126,7 @@ export default function ConnectionStep({ onConnected }: Props) {
 
             <Field
               label="Password + Security Token"
-              hint="Concatenate your password and security token — e.g. MyPassword123TokenABC"
+              hint="Append your security token directly to your password — e.g. MyPassword123TokenABC"
             >
               <input
                 type="password"
@@ -181,30 +138,19 @@ export default function ConnectionStep({ onConnected }: Props) {
               />
             </Field>
 
-            <Field label="Login URL">
+            <Field label="Environment">
               <div className="flex rounded-lg border border-sf-neutral-30 overflow-hidden">
-                <button
-                  type="button"
+                <EnvButton
+                  active={loginUrl === 'login.salesforce.com'}
                   onClick={() => setLoginUrl('login.salesforce.com')}
-                  className={`flex-1 py-2 text-sm font-medium transition ${
-                    loginUrl === 'login.salesforce.com'
-                      ? 'bg-sf-blue text-white'
-                      : 'bg-white text-sf-neutral-70 hover:bg-sf-neutral-10'
-                  }`}
-                >
-                  Production
-                </button>
-                <button
-                  type="button"
+                  label="Production"
+                />
+                <EnvButton
+                  active={loginUrl === 'test.salesforce.com'}
                   onClick={() => setLoginUrl('test.salesforce.com')}
-                  className={`flex-1 py-2 text-sm font-medium transition border-l border-sf-neutral-30 ${
-                    loginUrl === 'test.salesforce.com'
-                      ? 'bg-sf-blue text-white'
-                      : 'bg-white text-sf-neutral-70 hover:bg-sf-neutral-10'
-                  }`}
-                >
-                  Sandbox
-                </button>
+                  label="Sandbox"
+                  border
+                />
               </div>
             </Field>
           </>
@@ -240,44 +186,21 @@ export default function ConnectionStep({ onConnected }: Props) {
         </button>
       </form>
 
-      {/* Setup help */}
-      {method === 'client_credentials' && (
-        <details className="mt-7 border border-sf-neutral-30 rounded-xl overflow-hidden">
-          <summary className="px-4 py-3 bg-sf-neutral-10 text-sm font-medium text-sf-neutral-90 cursor-pointer">
-            How to set up Client Credentials Flow
-          </summary>
-          <ol className="px-5 py-4 space-y-1.5 text-xs text-sf-neutral-70 list-decimal list-inside">
-            <li>Setup → <strong>App Manager</strong> → New Connected App</li>
-            <li>Enable <strong>OAuth Settings</strong>, add any callback URL</li>
-            <li>Add scopes: <em>Manage user data via APIs (api)</em></li>
-            <li>Save, then go to <strong>Manage</strong> → <strong>Edit Policies</strong></li>
-            <li>Set IP Relaxation to <em>Relax IP restrictions</em></li>
-            <li>Enable <strong>Client Credentials Flow</strong> and set a <strong>Run As</strong> user</li>
-            <li>Wait 2–10 min for changes to propagate</li>
-          </ol>
-        </details>
-      )}
-
+      {/* Help text */}
       {method === 'username_password' && (
-        <details className="mt-7 border border-sf-neutral-30 rounded-xl overflow-hidden">
-          <summary className="px-4 py-3 bg-sf-neutral-10 text-sm font-medium text-sf-neutral-90 cursor-pointer">
-            How to set up Username + Password Flow
-          </summary>
-          <ol className="px-5 py-4 space-y-1.5 text-xs text-sf-neutral-70 list-decimal list-inside">
-            <li>Setup → <strong>App Manager</strong> → New Connected App</li>
-            <li>Enable <strong>OAuth Settings</strong>, add any callback URL</li>
-            <li>Add scopes: <em>Manage user data via APIs (api)</em></li>
-            <li>Save, then go to <strong>Manage</strong> → <strong>Edit Policies</strong></li>
-            <li>Set Permitted Users to <em>All users may self-authorize</em></li>
-            <li>Your security token is emailed when you reset it via <strong>My Settings → Reset Security Token</strong></li>
-          </ol>
-        </details>
+        <p className="mt-5 text-xs text-sf-neutral-70 leading-relaxed">
+          Don&apos;t have your security token?{' '}
+          <span className="text-sf-neutral-90 font-medium">
+            My Settings → Personal → Reset My Security Token
+          </span>{' '}
+          in Salesforce — it will be emailed to you.
+        </p>
       )}
     </div>
   );
 }
 
-// ── Shared helpers ─────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-lg border border-sf-neutral-30 bg-white text-sf-neutral-100 ' +
@@ -317,13 +240,37 @@ function MethodTab({
       type="button"
       onClick={onClick}
       className={`flex-1 py-3 px-4 text-left transition ${
-        active
-          ? 'bg-sf-blue text-white'
-          : 'bg-white text-sf-neutral-70 hover:bg-sf-neutral-10'
+        active ? 'bg-sf-blue' : 'bg-white hover:bg-sf-neutral-10'
       }`}
     >
-      <div className={`text-sm font-semibold ${active ? 'text-white' : 'text-sf-neutral-90'}`}>{label}</div>
+      <div className={`text-sm font-semibold ${active ? 'text-white' : 'text-sf-neutral-90'}`}>
+        {label}
+      </div>
       <div className={`text-xs ${active ? 'text-blue-200' : 'text-sf-neutral-50'}`}>{desc}</div>
+    </button>
+  );
+}
+
+function EnvButton({
+  active,
+  onClick,
+  label,
+  border,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  border?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 py-2 text-sm font-medium transition ${
+        border ? 'border-l border-sf-neutral-30' : ''
+      } ${active ? 'bg-sf-blue text-white' : 'bg-white text-sf-neutral-70 hover:bg-sf-neutral-10'}`}
+    >
+      {label}
     </button>
   );
 }

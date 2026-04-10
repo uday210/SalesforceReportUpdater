@@ -9,12 +9,9 @@ export type AuthMethod = 'client_credentials' | 'username_password';
 
 export interface ConnectRequestBody {
   method: AuthMethod;
-  // shared
-  clientId?: string;
-  clientSecret?: string;
-  // client_credentials only
+  // client_credentials
   domain?: string;
-  // username_password only
+  // username_password
   username?: string;
   password?: string; // password + security token concatenated
   loginUrl?: string; // defaults to login.salesforce.com
@@ -27,17 +24,29 @@ export interface ConnectResponseBody {
   orgType: string;
 }
 
+function getAppCredentials() {
+  const clientId = process.env.SF_CLIENT_ID;
+  const clientSecret = process.env.SF_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'SF_CLIENT_ID and SF_CLIENT_SECRET environment variables are not configured on the server.',
+    );
+  }
+  return { clientId, clientSecret };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: ConnectRequestBody = await req.json();
+    const { clientId, clientSecret } = getAppCredentials();
 
     let auth: { accessToken: string; instanceUrl: string };
 
     if (body.method === 'username_password') {
-      const { clientId, clientSecret, username, password, loginUrl } = body;
-      if (!clientId || !clientSecret || !username || !password) {
+      const { username, password, loginUrl } = body;
+      if (!username || !password) {
         return NextResponse.json(
-          { error: 'clientId, clientSecret, username, and password are required' },
+          { error: 'username and password are required' },
           { status: 400 },
         );
       }
@@ -49,13 +58,9 @@ export async function POST(req: NextRequest) {
         loginUrl ?? 'login.salesforce.com',
       );
     } else {
-      // Default: client_credentials
-      const { domain, clientId, clientSecret } = body;
-      if (!domain || !clientId || !clientSecret) {
-        return NextResponse.json(
-          { error: 'domain, clientId, and clientSecret are required' },
-          { status: 400 },
-        );
+      const { domain } = body;
+      if (!domain) {
+        return NextResponse.json({ error: 'domain is required' }, { status: 400 });
       }
       auth = await authenticateWithClientCredentials(domain, clientId, clientSecret);
     }
