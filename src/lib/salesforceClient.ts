@@ -98,6 +98,41 @@ export async function authenticateWithClientCredentials(
   };
 }
 
+// ── Authorization Code Exchange ────────────────────────────────────────────────
+
+export async function exchangeCodeForToken(
+  code: string,
+  redirectUri: string,
+  clientId: string,
+  clientSecret: string,
+  loginDomain = 'login.salesforce.com',
+): Promise<SalesforceAuth> {
+  const cleanDomain = loginDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const tokenUrl = `https://${cleanDomain}/services/oauth2/token`;
+
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error_description: 'Token exchange failed' }));
+    throw new Error(error.error_description || error.error || 'Token exchange failed');
+  }
+
+  const data = await response.json();
+  return { accessToken: data.access_token, instanceUrl: data.instance_url };
+}
+
 // ── Username + Password Auth ───────────────────────────────────────────────────
 
 /**

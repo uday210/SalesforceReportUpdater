@@ -172,8 +172,6 @@ export default function ConfigureStep({ connection, onScan, onDisconnect }: Prop
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accessToken: connection.accessToken,
-          instanceUrl: connection.instanceUrl,
           objectName: objectName.trim(),
         }),
       });
