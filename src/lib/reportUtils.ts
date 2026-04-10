@@ -99,7 +99,23 @@ export function analyzeReport(
   const updated: ReportMetadata = JSON.parse(JSON.stringify(metadata));
 
   for (const mapping of fieldMappings) {
-    if (!mapping.oldField.trim() || !mapping.newField.trim()) continue;
+    if (!mapping.newField.trim()) continue;
+    // For keep-both with no oldField, just append the new field to columns
+    if (!mapping.oldField.trim() && mapping.mode === 'keep-both') {
+      if (!updated.detailColumns) updated.detailColumns = [];
+      if (!updated.detailColumns.some((col) => fieldMatches(col, mapping.newField))) {
+        updated.detailColumns.push(mapping.newField);
+        changes.push({
+          location: 'column',
+          index: updated.detailColumns.length - 1,
+          oldValue: '',
+          newValue: mapping.newField,
+          changeType: 'insert',
+        });
+      }
+      continue;
+    }
+    if (!mapping.oldField.trim()) continue;
     const isKeepBoth = mapping.mode === 'keep-both';
 
     // 1. Detail columns

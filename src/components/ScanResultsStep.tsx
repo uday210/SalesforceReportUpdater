@@ -132,14 +132,18 @@ export default function ScanResultsStep({
   const allSelected = reports.length > 0 && reports.every((r) => selectedIds.has(r.reportId));
   const someSelected = reports.some((r) => selectedIds.has(r.reportId));
 
+  // For keep-both (add alongside), oldField is not required
+  const isEntryComplete = (m: MappingEntry) =>
+    m.newField !== null && (m.mode === 'keep-both' || m.oldField !== null);
+
   // A report is "ready" if it has ≥1 mapping, all complete
   const selectedList = reports.filter((r) => selectedIds.has(r.reportId));
   const hasIncomplete = selectedList.some((r) =>
-    getMappings(r.reportId).some((m) => !m.oldField || !m.newField),
+    getMappings(r.reportId).some((m) => !isEntryComplete(m)),
   );
   const hasDeployable = selectedList.some((r) => {
     const m = getMappings(r.reportId);
-    return m.length > 0 && m.every((e) => e.oldField && e.newField);
+    return m.length > 0 && m.every(isEntryComplete);
   });
   const canDeploy = selectedIds.size > 0 && hasDeployable && !hasIncomplete;
 
@@ -178,8 +182,13 @@ export default function ScanResultsStep({
   function handleDeploy() {
     const entries = Array.from(selectedIds).flatMap((reportId) => {
       const mappings = getMappings(reportId)
-        .filter((m) => m.oldField && m.newField)
-        .map((m) => ({ oldField: m.oldField!.apiName, newField: m.newField!.apiName, mode: m.mode }));
+        .filter(isEntryComplete)
+        .map((m) => ({
+          // keep-both with no oldField = add-only; use empty string so analyzeReport appends
+          oldField: m.mode === 'keep-both' && !m.oldField ? '' : m.oldField!.apiName,
+          newField: m.newField!.apiName,
+          mode: m.mode,
+        }));
       return mappings.length > 0 ? [{ reportId, mappings }] : [];
     });
     onDeploy(entries);
@@ -261,9 +270,19 @@ export default function ScanResultsStep({
               const mappings = getMappings(report.reportId);
               const isSelected = selectedIds.has(report.reportId);
               const isExpanded = expandedIds.has(report.reportId);
-              const completeMappings = mappings.filter((m) => m.oldField && m.newField);
+              const completeMappings = mappings.filter(isEntryComplete);
               const isReady = mappings.length > 0 && completeMappings.length === mappings.length;
               const hasPartial = mappings.length > 0 && completeMappings.length < mappings.length;
+
+              // Fields already present in this report (to exclude from add-alongside picker)
+              const existingReportFields = new Set(
+                [
+                  ...(report.originalMetadata.detailColumns ?? []),
+                  ...(report.originalMetadata.groupingsDown ?? []).map((g) => g.name),
+                  ...(report.originalMetadata.groupingsAcross ?? []).map((g) => g.name),
+                  ...(report.originalMetadata.reportFilters ?? []).map((f) => f.column),
+                ].map((s) => s.toUpperCase()),
+              );
 
               return (
                 <div
@@ -379,6 +398,7 @@ export default function ScanResultsStep({
                               key={entry.id}
                               entry={entry}
                               availableFields={availableFields}
+                              existingReportFields={existingReportFields}
                               onUpdate={(patch) => updateMappingIn(report.reportId, entry.id, patch)}
                               onRemove={() => removeMappingFrom(report.reportId, entry.id)}
                             />
@@ -560,53 +580,93 @@ function FieldPicker({
 function InlineMappingRow({
   entry,
   availableFields,
+  existingReportFields,
   onUpdate,
   onRemove,
 }: {
   entry: MappingEntry;
   availableFields: SalesforceField[];
+  existingReportFields: Set<string>;
   onUpdate: (patch: Partial<Omit<MappingEntry, 'id'>>) => void;
   onRemove: () => void;
 }) {
+  const isAddMode = entry.mode === 'keep-both';
+
+  // For add-alongside, exclude fields already present in the report
+  const addableFields = isAddMode
+    ? availableFields.filter(
+        (f) => !existingReportFields.has(f.apiName.toUpperCase()),
+      )
+    : availableFields;
+
+  function handleModeChange(mode: FieldMappingMode) {
+    // Switching to add-alongside: clear oldField since it's not needed
+    if (mode === 'keep-both') onUpdate({ mode, oldField: null });
+    else onUpdate({ mode });
+  }
+
   return (
     <div className="bg-white rounded-xl border border-sf-neutral-30 overflow-hidden">
       <div className="p-3 space-y-2">
-        {/* From */}
-        <div>
-          <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-1.5">
-            Replace this field
-          </p>
-          <FieldPicker
-            value={entry.oldField}
-            availableFields={availableFields}
-            exclude={entry.newField?.apiName}
-            placeholder="Select field to replace…"
-            onChange={(f) => onUpdate({ oldField: f })}
-          />
-        </div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-2 py-0.5">
-          <div className="flex-1 h-px bg-sf-neutral-20" />
-          <svg className="w-3.5 h-3.5 text-sf-neutral-40 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-          <div className="flex-1 h-px bg-sf-neutral-20" />
-        </div>
+        {/* Replace mode: show From → To */}
+        {!isAddMode && (
+          <>
+            <div>
+              <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-1.5">
+                Replace this field
+              </p>
+              <FieldPicker
+                value={entry.oldField}
+                availableFields={availableFields}
+                exclude={entry.newField?.apiName}
+                placeholder="Select field to replace…"
+                onChange={(f) => onUpdate({ oldField: f })}
+              />
+            </div>
 
-        {/* To */}
-        <div>
-          <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-1.5">
-            With this field
-          </p>
-          <FieldPicker
-            value={entry.newField}
-            availableFields={availableFields}
-            exclude={entry.oldField?.apiName}
-            placeholder="Select new field…"
-            onChange={(f) => onUpdate({ newField: f })}
-          />
-        </div>
+            <div className="flex items-center gap-2 py-0.5">
+              <div className="flex-1 h-px bg-sf-neutral-20" />
+              <svg className="w-3.5 h-3.5 text-sf-neutral-40 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1 h-px bg-sf-neutral-20" />
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-1.5">
+                With this field
+              </p>
+              <FieldPicker
+                value={entry.newField}
+                availableFields={availableFields}
+                exclude={entry.oldField?.apiName}
+                placeholder="Select new field…"
+                onChange={(f) => onUpdate({ newField: f })}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Add-alongside mode: single picker, fields already on report are excluded */}
+        {isAddMode && (
+          <div>
+            <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-1.5">
+              Add this field to the report
+            </p>
+            <FieldPicker
+              value={entry.newField}
+              availableFields={addableFields}
+              placeholder="Select field to add…"
+              onChange={(f) => onUpdate({ newField: f })}
+            />
+            {addableFields.length === 0 && (
+              <p className="mt-1.5 text-xs text-sf-neutral-50">
+                All available fields are already on this report.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -614,7 +674,7 @@ function InlineMappingRow({
         <div className="flex rounded-lg border border-sf-neutral-30 overflow-hidden text-xs bg-white">
           <button
             type="button"
-            onClick={() => onUpdate({ mode: 'replace' })}
+            onClick={() => handleModeChange('replace')}
             title="Remove the old field and put the new field in its place"
             className={`px-3 py-1.5 font-medium transition ${
               entry.mode === 'replace'
@@ -626,8 +686,8 @@ function InlineMappingRow({
           </button>
           <button
             type="button"
-            onClick={() => onUpdate({ mode: 'keep-both' })}
-            title="Keep the old field and insert the new field alongside it"
+            onClick={() => handleModeChange('keep-both')}
+            title="Add a new field to the report without removing anything"
             className={`px-3 py-1.5 font-medium transition border-l border-sf-neutral-30 ${
               entry.mode === 'keep-both'
                 ? 'bg-sf-blue text-white'
