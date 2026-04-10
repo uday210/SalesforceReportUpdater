@@ -56,6 +56,13 @@ export interface OrgInfo {
   orgType: string;
 }
 
+export interface SalesforceField {
+  apiName: string;
+  label: string;
+  type: string;
+  referenceTo: string[];
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
 export async function authenticateWithClientCredentials(
@@ -71,6 +78,50 @@ export async function authenticateWithClientCredentials(
     grant_type: 'client_credentials',
     client_id: clientId,
     client_secret: clientSecret,
+  });
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error_description: 'Authentication failed' }));
+    throw new Error(error.error_description || error.error || 'Authentication failed');
+  }
+
+  const data = await response.json();
+  return {
+    accessToken: data.access_token,
+    instanceUrl: data.instance_url,
+  };
+}
+
+// ── Username + Password Auth ───────────────────────────────────────────────────
+
+/**
+ * Authenticates using the OAuth 2.0 username-password flow.
+ * `password` should be the Salesforce password concatenated with the security token,
+ * e.g. "MyPassword123ABCDEFabcdef123456".
+ * Requires a Connected App with username-password flow enabled.
+ */
+export async function authenticateWithUsernamePassword(
+  clientId: string,
+  clientSecret: string,
+  username: string,
+  password: string,
+  loginDomain = 'login.salesforce.com',
+): Promise<SalesforceAuth> {
+  const cleanDomain = loginDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const tokenUrl = `https://${cleanDomain}/services/oauth2/token`;
+
+  const params = new URLSearchParams({
+    grant_type: 'password',
+    client_id: clientId,
+    client_secret: clientSecret,
+    username,
+    password,
   });
 
   const response = await fetch(tokenUrl, {
@@ -237,4 +288,40 @@ export async function updateReport(
     }
     throw new Error(message);
   }
+}
+
+// ── Object Fields ──────────────────────────────────────────────────────────────
+
+export async function getObjectFields(
+  auth: SalesforceAuth,
+  objectName: string,
+): Promise<SalesforceField[]> {
+  const response = await fetch(
+    `${auth.instanceUrl}/services/data/${SF_API_VERSION}/sobjects/${objectName}/describe`,
+    { headers: { Authorization: `Bearer ${auth.accessToken}` } },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = `Object "${objectName}" not found`;
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed) && parsed[0]?.message) {
+        message = parsed[0].message;
+      }
+    } catch {
+      message = text || message;
+    }
+    throw new Error(message);
+  }
+
+  const data = await response.json();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.fields as any[]).map((f) => ({
+    apiName: f.name as string,
+    label: f.label as string,
+    type: f.type as string,
+    referenceTo: (f.referenceTo ?? []) as string[],
+  }));
 }
