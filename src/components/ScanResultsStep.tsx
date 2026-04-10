@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { FieldMapping, FieldMappingMode } from '@/lib/reportUtils';
 import type { ScanResponseBody } from '@/app/api/reports/scan/route';
 import type { SalesforceField } from '@/lib/salesforceClient';
@@ -416,6 +416,7 @@ export default function ScanResultsStep({
 }
 
 // ── FieldPicker ────────────────────────────────────────────────────────────────
+// Uses position:fixed so the dropdown escapes overflow:hidden on parent cards.
 
 function FieldPicker({
   value,
@@ -432,6 +433,24 @@ function FieldPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setOpen((o) => !o);
+  }
+
+  // Close on any scroll so the dropdown doesn't drift
+  useEffect(() => {
+    if (!open) return;
+    const close = () => { setOpen(false); setSearch(''); };
+    window.addEventListener('scroll', close, true);
+    return () => window.removeEventListener('scroll', close, true);
+  }, [open]);
 
   const filtered = useMemo(
     () =>
@@ -447,8 +466,9 @@ function FieldPicker({
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border text-sm text-left transition
           ${value
             ? 'border-sf-neutral-50 bg-white text-sf-neutral-100'
@@ -474,8 +494,16 @@ function FieldPicker({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setSearch(''); }} />
-          <div className="absolute z-20 mt-1 w-full min-w-[260px] bg-white border border-sf-neutral-30 rounded-xl shadow-lg overflow-hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => { setOpen(false); setSearch(''); }}
+          />
+          {/* Dropdown — fixed so it escapes overflow:hidden parents */}
+          <div
+            className="fixed z-[101] bg-white border border-sf-neutral-30 rounded-xl shadow-xl overflow-hidden"
+            style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 280) }}
+          >
             <div className="p-2 border-b border-sf-neutral-30">
               <input
                 autoFocus
