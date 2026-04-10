@@ -106,6 +106,7 @@ export async function exchangeCodeForToken(
   clientId: string,
   clientSecret: string,
   loginDomain = 'login.salesforce.com',
+  codeVerifier?: string,
 ): Promise<SalesforceAuth> {
   const cleanDomain = loginDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const tokenUrl = `https://${cleanDomain}/services/oauth2/token`;
@@ -117,6 +118,11 @@ export async function exchangeCodeForToken(
     client_id: clientId,
     client_secret: clientSecret,
   });
+
+  // Include PKCE verifier if the Connected App requires it
+  if (codeVerifier) {
+    params.set('code_verifier', codeVerifier);
+  }
 
   const response = await fetch(tokenUrl, {
     method: 'POST',

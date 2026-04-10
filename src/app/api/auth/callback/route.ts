@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/?auth_error=Missing+state+cookie`);
     }
 
-    let oauthState: { state: string; loginDomain: string; redirectUri: string };
+    let oauthState: { state: string; loginDomain: string; redirectUri: string; codeVerifier?: string };
     try {
       oauthState = JSON.parse(stateCookie);
     } catch {
@@ -47,13 +47,14 @@ export async function GET(req: NextRequest) {
     const clientId = process.env.SF_CLIENT_ID!;
     const clientSecret = process.env.SF_CLIENT_SECRET!;
 
-    // Exchange code for token
+    // Exchange code for token (pass codeVerifier for PKCE)
     const auth = await exchangeCodeForToken(
       code,
       oauthState.redirectUri,
       clientId,
       clientSecret,
       oauthState.loginDomain,
+      oauthState.codeVerifier,
     );
 
     const orgInfo = await getOrgInfo(auth);
