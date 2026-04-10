@@ -435,6 +435,7 @@ function FieldPicker({
   const [search, setSearch] = useState('');
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   function handleToggle() {
     if (!open && btnRef.current) {
@@ -444,10 +445,14 @@ function FieldPicker({
     setOpen((o) => !o);
   }
 
-  // Close on any scroll so the dropdown doesn't drift
+  // Close on scroll only when the scroll happens outside the dropdown
   useEffect(() => {
     if (!open) return;
-    const close = () => { setOpen(false); setSearch(''); };
+    const close = (e: Event) => {
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+      setSearch('');
+    };
     window.addEventListener('scroll', close, true);
     return () => window.removeEventListener('scroll', close, true);
   }, [open]);
@@ -501,6 +506,7 @@ function FieldPicker({
           />
           {/* Dropdown — fixed so it escapes overflow:hidden parents */}
           <div
+            ref={dropdownRef}
             className="fixed z-[101] bg-white border border-sf-neutral-30 rounded-xl shadow-xl overflow-hidden"
             style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 280) }}
           >
