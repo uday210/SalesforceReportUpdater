@@ -7,7 +7,6 @@ export type FieldMappingMode = 'replace' | 'keep-both';
 export interface FieldMapping {
   oldField: string;
   newField: string;
-  /** replace: swap old → new. keep-both: retain old AND insert new alongside it. */
   mode: FieldMappingMode;
 }
 
@@ -15,18 +14,24 @@ export type ChangeLocation = 'column' | 'filter' | 'groupingDown' | 'groupingAcr
 
 export interface FieldChange {
   location: ChangeLocation;
-  /** Index of the old field in the original metadata array */
   index: number;
   oldValue: string;
   newValue: string;
-  /**
-   * replace — oldValue is swapped for newValue.
-   * insert  — newValue is inserted right after oldValue (keep-both columns/groupings).
-   *           Filters always use replace even in keep-both mode.
-   */
   changeType: 'replace' | 'insert';
 }
 
+/** Result of the scan phase — which old fields appear in a report, no replacements yet */
+export interface AffectedReport {
+  reportId: string;
+  reportName: string;
+  folderName?: string;
+  reportObjectType: string;
+  /** Which of the searched old fields actually appear in this report */
+  foundFields: string[];
+  originalMetadata: ReportMetadata;
+}
+
+/** Result of the apply phase — what changed and the updated metadata */
 export interface ReportAnalysis {
   reportId: string;
   reportName: string;
@@ -40,16 +45,7 @@ export interface ReportAnalysis {
 
 // ── Field matching helpers ─────────────────────────────────────────────────────
 
-/**
- * Returns true when `fieldInReport` contains `searchField` as its last path segment,
- * compared case-insensitively.
- *
- * Examples:
- *   fieldMatches("OPPORTUNITY.OLD_LOOKUP__C", "OLD_LOOKUP__C")  → true
- *   fieldMatches("OLD_LOOKUP__C", "OLD_LOOKUP__C")               → true
- *   fieldMatches("ACCOUNT.NAME", "OLD_LOOKUP__C")                → false
- */
-function fieldMatches(fieldInReport: string, searchField: string): boolean {
+export function fieldMatches(fieldInReport: string, searchField: string): boolean {
   const upperReport = fieldInReport.toUpperCase();
   const upperSearch = searchField.toUpperCase();
   if (upperReport === upperSearch) return true;
@@ -57,41 +53,40 @@ function fieldMatches(fieldInReport: string, searchField: string): boolean {
   return false;
 }
 
-/**
- * Replaces the matching segment in `fieldInReport` with `newField`, preserving any prefix.
- *
- * Examples:
- *   replaceField("OPPORTUNITY.OLD_LOOKUP__C", "OLD_LOOKUP__C", "NEW_LOOKUP__C")
- *   → "OPPORTUNITY.NEW_LOOKUP__C"
- */
 function replaceField(fieldInReport: string, oldField: string, newField: string): string {
   const upperReport = fieldInReport.toUpperCase();
   const upperOld = oldField.toUpperCase();
   if (upperReport === upperOld) return newField;
   const suffix = '.' + upperOld;
   if (upperReport.endsWith(suffix)) {
-    const prefix = fieldInReport.slice(0, fieldInReport.length - suffix.length);
-    return `${prefix}.${newField}`;
+    return fieldInReport.slice(0, fieldInReport.length - suffix.length) + '.' + newField;
   }
   return fieldInReport;
 }
 
-/**
- * Derives the new field path by copying the object prefix from the old field path
- * and appending the new field API name.
- *
- * Examples:
- *   deriveNewPath("OPPORTUNITY.OLD_LOOKUP__C", "OLD_LOOKUP__C", "NEW_LOOKUP__C")
- *   → "OPPORTUNITY.NEW_LOOKUP__C"
- *
- *   deriveNewPath("OLD_LOOKUP__C", "OLD_LOOKUP__C", "NEW_LOOKUP__C")
- *   → "NEW_LOOKUP__C"
- */
-function deriveNewPath(fieldInReport: string, oldField: string, newField: string): string {
-  return replaceField(fieldInReport, oldField, newField);
+// ── Scan phase: detect which old fields appear in a report ────────────────────
+
+export function findFieldsInReport(
+  metadata: ReportMetadata,
+  oldFieldNames: string[],
+): string[] {
+  const allFieldPaths = [
+    ...(metadata.detailColumns ?? []),
+    ...(metadata.groupingsDown ?? []).map((g) => g.name),
+    ...(metadata.groupingsAcross ?? []).map((g) => g.name),
+    ...(metadata.reportFilters ?? []).map((f) => f.column),
+  ];
+
+  const found = new Set<string>();
+  for (const oldField of oldFieldNames) {
+    if (allFieldPaths.some((path) => fieldMatches(path, oldField))) {
+      found.add(oldField);
+    }
+  }
+  return Array.from(found);
 }
 
-// ── Core analysis ──────────────────────────────────────────────────────────────
+// ── Apply phase: compute changes and produce updated metadata ─────────────────
 
 export function analyzeReport(
   reportId: string,
@@ -107,22 +102,14 @@ export function analyzeReport(
     if (!mapping.oldField.trim() || !mapping.newField.trim()) continue;
     const isKeepBoth = mapping.mode === 'keep-both';
 
-    // ── 1. Detail columns ────────────────────────────────────────────────────
-    // Collect matches first, then apply insertions in reverse order so indices stay valid
+    // 1. Detail columns
     const colMatches: Array<{ idx: number; oldVal: string; newVal: string }> = [];
-
     (updated.detailColumns ?? []).forEach((col, idx) => {
       if (fieldMatches(col, mapping.oldField)) {
-        colMatches.push({
-          idx,
-          oldVal: col,
-          newVal: deriveNewPath(col, mapping.oldField, mapping.newField),
-        });
+        colMatches.push({ idx, oldVal: col, newVal: replaceField(col, mapping.oldField, mapping.newField) });
       }
     });
-
     if (isKeepBoth) {
-      // Apply insertions in reverse so index offsets don't accumulate
       [...colMatches].reverse().forEach(({ idx, oldVal, newVal }) => {
         updated.detailColumns.splice(idx + 1, 0, newVal);
         changes.push({ location: 'column', index: idx, oldValue: oldVal, newValue: newVal, changeType: 'insert' });
@@ -134,23 +121,16 @@ export function analyzeReport(
       });
     }
 
-    // ── 2. Groupings (rows) ──────────────────────────────────────────────────
+    // 2. Groupings down
     const gdMatches: Array<{ idx: number; oldVal: string; newVal: string }> = [];
-
     (updated.groupingsDown ?? []).forEach((g, idx) => {
       if (fieldMatches(g.name, mapping.oldField)) {
-        gdMatches.push({
-          idx,
-          oldVal: g.name,
-          newVal: deriveNewPath(g.name, mapping.oldField, mapping.newField),
-        });
+        gdMatches.push({ idx, oldVal: g.name, newVal: replaceField(g.name, mapping.oldField, mapping.newField) });
       }
     });
-
     if (isKeepBoth) {
       [...gdMatches].reverse().forEach(({ idx, oldVal, newVal }) => {
-        const newGrouping = { ...updated.groupingsDown[idx], name: newVal };
-        updated.groupingsDown.splice(idx + 1, 0, newGrouping);
+        updated.groupingsDown.splice(idx + 1, 0, { ...updated.groupingsDown[idx], name: newVal });
         changes.push({ location: 'groupingDown', index: idx, oldValue: oldVal, newValue: newVal, changeType: 'insert' });
       });
     } else {
@@ -160,23 +140,16 @@ export function analyzeReport(
       });
     }
 
-    // ── 3. Groupings (columns/across) ────────────────────────────────────────
+    // 3. Groupings across
     const gaMatches: Array<{ idx: number; oldVal: string; newVal: string }> = [];
-
     (updated.groupingsAcross ?? []).forEach((g, idx) => {
       if (fieldMatches(g.name, mapping.oldField)) {
-        gaMatches.push({
-          idx,
-          oldVal: g.name,
-          newVal: deriveNewPath(g.name, mapping.oldField, mapping.newField),
-        });
+        gaMatches.push({ idx, oldVal: g.name, newVal: replaceField(g.name, mapping.oldField, mapping.newField) });
       }
     });
-
     if (isKeepBoth) {
       [...gaMatches].reverse().forEach(({ idx, oldVal, newVal }) => {
-        const newGrouping = { ...updated.groupingsAcross[idx], name: newVal };
-        updated.groupingsAcross.splice(idx + 1, 0, newGrouping);
+        updated.groupingsAcross.splice(idx + 1, 0, { ...updated.groupingsAcross[idx], name: newVal });
         changes.push({ location: 'groupingAcross', index: idx, oldValue: oldVal, newValue: newVal, changeType: 'insert' });
       });
     } else {
@@ -186,11 +159,10 @@ export function analyzeReport(
       });
     }
 
-    // ── 4. Report filters ────────────────────────────────────────────────────
-    // Filters always use replace — duplicating a filter condition doesn't make sense
+    // 4. Filters — always replace
     (updated.reportFilters ?? []).forEach((f, idx) => {
       if (fieldMatches(f.column, mapping.oldField)) {
-        const newVal = deriveNewPath(f.column, mapping.oldField, mapping.newField);
+        const newVal = replaceField(f.column, mapping.oldField, mapping.newField);
         updated.reportFilters[idx].column = newVal;
         changes.push({ location: 'filter', index: idx, oldValue: f.column, newValue: newVal, changeType: 'replace' });
       }
@@ -208,8 +180,6 @@ export function analyzeReport(
     updatedMetadata: changes.length > 0 ? updated : null,
   };
 }
-
-// ── UI helpers ─────────────────────────────────────────────────────────────────
 
 export const LOCATION_LABELS: Record<ChangeLocation, string> = {
   column: 'Column',

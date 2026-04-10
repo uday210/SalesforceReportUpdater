@@ -6,7 +6,8 @@ import ConnectionStep, { type ConnectionInfo } from '@/components/ConnectionStep
 import ConfigureStep from '@/components/ConfigureStep';
 import ScanResultsStep from '@/components/ScanResultsStep';
 import DeployStep from '@/components/DeployStep';
-import type { FieldMapping } from '@/lib/reportUtils';
+import { analyzeReport, type FieldMapping } from '@/lib/reportUtils';
+import type { SalesforceField } from '@/lib/salesforceClient';
 import type { ScanResponseBody } from '@/app/api/reports/scan/route';
 import type { UpdateResponseBody } from '@/app/api/reports/update/route';
 
@@ -26,8 +27,9 @@ export default function HomePage() {
   const [connection, setConnection] = useState<ConnectionInfo | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
+  const [loadedFields, setLoadedFields] = useState<SalesforceField[]>([]);
+
   const [scanning, setScanning] = useState(false);
-  const [scanProgress] = useState<{ scanned: number; total: number } | null>(null);
   const [scanResult, setScanResult] = useState<ScanResponseBody | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
 
@@ -76,6 +78,7 @@ export default function HomePage() {
   async function handleDisconnect() {
     await fetch('/api/auth/disconnect', { method: 'POST' });
     setConnection(null);
+    setLoadedFields([]);
     setScanResult(null);
     setScanError(null);
     setDeployResult(null);
@@ -83,7 +86,12 @@ export default function HomePage() {
     setStep('connect');
   }
 
-  async function handleScan(fieldMappings: FieldMapping[], targetObjectType: string) {
+  async function handleFindReports(
+    oldFieldNames: string[],
+    objectType: string,
+    fields: SalesforceField[],
+  ) {
+    setLoadedFields(fields);
     setScanning(true);
     setScanError(null);
     setScanResult(null);
@@ -94,8 +102,8 @@ export default function HomePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fieldMappings,
-          targetObjectType: targetObjectType || undefined,
+          oldFieldNames,
+          objectType: objectType || undefined,
         }),
       });
       const data = await res.json();
@@ -108,16 +116,26 @@ export default function HomePage() {
     }
   }
 
-  async function handleDeploy(selectedIds: string[]) {
+  async function handleDeploy(selectedIds: string[], fieldMappings: FieldMapping[]) {
     if (!scanResult) return;
 
-    const targets = scanResult.analyses
-      .filter((a) => selectedIds.includes(a.reportId) && a.updatedMetadata !== null)
-      .map((a) => ({
-        reportId: a.reportId,
-        reportName: a.reportName,
-        updatedMetadata: a.updatedMetadata!,
-      }));
+    const targets = scanResult.affectedReports
+      .filter((r) => selectedIds.includes(r.reportId))
+      .flatMap((r) => {
+        const analysis = analyzeReport(
+          r.reportId,
+          r.reportName,
+          r.folderName,
+          r.originalMetadata,
+          fieldMappings,
+        );
+        if (!analysis.hasChanges || !analysis.updatedMetadata) return [];
+        return [{
+          reportId: analysis.reportId,
+          reportName: analysis.reportName,
+          updatedMetadata: analysis.updatedMetadata,
+        }];
+      });
 
     if (targets.length === 0) return;
 
@@ -143,6 +161,7 @@ export default function HomePage() {
   }
 
   function handleStartOver() {
+    setLoadedFields([]);
     setScanResult(null);
     setScanError(null);
     setDeployResult(null);
@@ -256,7 +275,7 @@ export default function HomePage() {
         {step === 'configure' && connection && (
           <ConfigureStep
             connection={connection}
-            onScan={handleScan}
+            onFindReports={handleFindReports}
             onDisconnect={handleDisconnect}
           />
         )}
@@ -264,9 +283,9 @@ export default function HomePage() {
         {step === 'results' && (
           <ScanResultsStep
             scanning={scanning}
-            scanProgress={scanProgress}
             scanResult={scanResult}
             scanError={scanError}
+            availableFields={loadedFields}
             onDeploy={handleDeploy}
             onBack={() => setStep('configure')}
           />

@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listAllReports, getReportDetail } from '@/lib/salesforceClient';
-import { analyzeReport } from '@/lib/reportUtils';
+import { findFieldsInReport } from '@/lib/reportUtils';
 import { getSession } from '@/lib/sessionCookie';
-import type { FieldMapping, ReportAnalysis } from '@/lib/reportUtils';
+import type { AffectedReport } from '@/lib/reportUtils';
 
 export interface ScanRequestBody {
-  fieldMappings: FieldMapping[];
-  targetObjectType?: string;
+  /** Old field API names to search for */
+  oldFieldNames: string[];
+  /** If set, only scan reports whose primary object type matches */
+  objectType?: string;
 }
 
 export interface ScanResponseBody {
   totalScanned: number;
   totalAffected: number;
-  analyses: ReportAnalysis[];
+  affectedReports: AffectedReport[];
+  /** Which of the searched fields were actually found in at least one report */
+  foundOldFields: string[];
   errors: Array<{ reportId: string; reportName: string; error: string }>;
 }
 
@@ -20,24 +24,18 @@ export async function POST(req: NextRequest) {
   try {
     const { accessToken, instanceUrl } = getSession();
     const body: ScanRequestBody = await req.json();
-    const { fieldMappings, targetObjectType } = body;
+    const { oldFieldNames, objectType } = body;
 
-    const validMappings = (fieldMappings ?? []).filter(
-      (m) => m.oldField?.trim() && m.newField?.trim(),
-    );
-
-    if (validMappings.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one valid field mapping is required' },
-        { status: 400 },
-      );
+    if (!oldFieldNames || oldFieldNames.length === 0) {
+      return NextResponse.json({ error: 'At least one field name is required' }, { status: 400 });
     }
 
     const auth = { accessToken, instanceUrl };
     const allReports = await listAllReports(auth);
 
-    const analyses: ReportAnalysis[] = [];
+    const affectedReports: AffectedReport[] = [];
     const errors: Array<{ reportId: string; reportName: string; error: string }> = [];
+    const foundFieldsSet = new Set<string>();
 
     const BATCH_SIZE = 10;
     for (let i = 0; i < allReports.length; i += BATCH_SIZE) {
@@ -49,21 +47,24 @@ export async function POST(req: NextRequest) {
             const metadata = detail.reportMetadata;
 
             if (
-              targetObjectType &&
-              metadata.reportType?.type?.toUpperCase() !== targetObjectType.toUpperCase()
+              objectType &&
+              metadata.reportType?.type?.toUpperCase() !== objectType.toUpperCase()
             ) {
               return;
             }
 
-            const analysis = analyzeReport(
-              report.id,
-              report.name,
-              report.folderName,
-              metadata,
-              validMappings,
-            );
+            const foundFields = findFieldsInReport(metadata, oldFieldNames);
+            if (foundFields.length === 0) return;
 
-            analyses.push(analysis);
+            foundFields.forEach((f) => foundFieldsSet.add(f));
+            affectedReports.push({
+              reportId: report.id,
+              reportName: report.name,
+              folderName: report.folderName,
+              reportObjectType: metadata.reportType?.type ?? '',
+              foundFields,
+              originalMetadata: metadata,
+            });
           } catch (err) {
             errors.push({
               reportId: report.id,
@@ -77,8 +78,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       totalScanned: allReports.length,
-      totalAffected: analyses.filter((a) => a.hasChanges).length,
-      analyses: analyses.filter((a) => a.hasChanges),
+      totalAffected: affectedReports.length,
+      affectedReports,
+      foundOldFields: Array.from(foundFieldsSet),
       errors,
     } satisfies ScanResponseBody);
   } catch (err) {
