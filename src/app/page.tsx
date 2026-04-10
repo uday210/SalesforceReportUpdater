@@ -113,26 +113,26 @@ export default function HomePage() {
     }
   }
 
-  async function handleDeploy(selectedIds: string[], fieldMappings: FieldMapping[]) {
+  async function handleDeploy(entries: Array<{ reportId: string; mappings: FieldMapping[] }>) {
     if (!scanResult) return;
 
-    const targets = scanResult.affectedReports
-      .filter((r) => selectedIds.includes(r.reportId))
-      .flatMap((r) => {
-        const analysis = analyzeReport(
-          r.reportId,
-          r.reportName,
-          r.folderName,
-          r.originalMetadata,
-          fieldMappings,
-        );
-        if (!analysis.hasChanges || !analysis.updatedMetadata) return [];
-        return [{
-          reportId: analysis.reportId,
-          reportName: analysis.reportName,
-          updatedMetadata: analysis.updatedMetadata,
-        }];
-      });
+    const targets = entries.flatMap(({ reportId, mappings }) => {
+      const report = scanResult.affectedReports.find((r) => r.reportId === reportId);
+      if (!report) return [];
+      const analysis = analyzeReport(
+        report.reportId,
+        report.reportName,
+        report.folderName,
+        report.originalMetadata,
+        mappings,
+      );
+      if (!analysis.hasChanges || !analysis.updatedMetadata) return [];
+      return [{
+        reportId: analysis.reportId,
+        reportName: analysis.reportName,
+        updatedMetadata: analysis.updatedMetadata,
+      }];
+    });
 
     if (targets.length === 0) return;
 
