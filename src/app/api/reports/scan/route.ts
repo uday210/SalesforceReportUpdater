@@ -5,10 +5,10 @@ import { getSession } from '@/lib/sessionCookie';
 import type { AffectedReport } from '@/lib/reportUtils';
 
 export interface ScanRequestBody {
-  /** Old field API names to search for */
+  /** Old field API names to search for; empty = scan all reports on objectType */
   oldFieldNames: string[];
-  /** If set, only scan reports whose primary object type matches */
-  objectType?: string;
+  /** Object API name — required */
+  objectType: string;
 }
 
 export interface ScanResponseBody {
@@ -25,9 +25,10 @@ export async function POST(req: NextRequest) {
     const { accessToken, instanceUrl } = getSession();
     const body: ScanRequestBody = await req.json();
     const { oldFieldNames, objectType } = body;
+    const scanAllFields = !oldFieldNames || oldFieldNames.length === 0;
 
-    if (!oldFieldNames || oldFieldNames.length === 0) {
-      return NextResponse.json({ error: 'At least one field name is required' }, { status: 400 });
+    if (!objectType) {
+      return NextResponse.json({ error: 'objectType is required' }, { status: 400 });
     }
 
     const auth = { accessToken, instanceUrl };
@@ -46,25 +47,34 @@ export async function POST(req: NextRequest) {
             const detail = await getReportDetail(auth, report.id);
             const metadata = detail.reportMetadata;
 
-            if (
-              objectType &&
-              metadata.reportType?.type?.toUpperCase() !== objectType.toUpperCase()
-            ) {
+            if (metadata.reportType?.type?.toUpperCase() !== objectType.toUpperCase()) {
               return;
             }
 
-            const foundFields = findFieldsInReport(metadata, oldFieldNames);
-            if (foundFields.length === 0) return;
+            if (scanAllFields) {
+              // No field filter — include all reports on this object
+              affectedReports.push({
+                reportId: report.id,
+                reportName: report.name,
+                folderName: report.folderName,
+                reportObjectType: metadata.reportType?.type ?? '',
+                foundFields: [],
+                originalMetadata: metadata,
+              });
+            } else {
+              const foundFields = findFieldsInReport(metadata, oldFieldNames);
+              if (foundFields.length === 0) return;
 
-            foundFields.forEach((f) => foundFieldsSet.add(f));
-            affectedReports.push({
-              reportId: report.id,
-              reportName: report.name,
-              folderName: report.folderName,
-              reportObjectType: metadata.reportType?.type ?? '',
-              foundFields,
-              originalMetadata: metadata,
-            });
+              foundFields.forEach((f) => foundFieldsSet.add(f));
+              affectedReports.push({
+                reportId: report.id,
+                reportName: report.name,
+                folderName: report.folderName,
+                reportObjectType: metadata.reportType?.type ?? '',
+                foundFields,
+                originalMetadata: metadata,
+              });
+            }
           } catch (err) {
             errors.push({
               reportId: report.id,

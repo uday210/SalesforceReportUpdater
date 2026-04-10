@@ -101,10 +101,7 @@ export default function HomePage() {
       const res = await fetch('/api/reports/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          oldFieldNames,
-          objectType: objectType || undefined,
-        }),
+        body: JSON.stringify({ oldFieldNames, objectType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Scan failed');
