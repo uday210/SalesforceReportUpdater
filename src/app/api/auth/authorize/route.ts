@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
   const loginDomain =
     env === 'sandbox' ? 'test.salesforce.com' : 'login.salesforce.com';
 
-  // Build redirect URI from the incoming request origin
-  const origin = req.nextUrl.origin;
+  // Use explicit APP_URL env var if set (recommended for prod), otherwise derive from request
+  const origin = process.env.APP_URL?.replace(/\/$/, '') ?? req.nextUrl.origin;
   const redirectUri = `${origin}/api/auth/callback`;
 
   // CSRF state — store in a short-lived cookie
