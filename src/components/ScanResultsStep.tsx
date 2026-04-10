@@ -417,13 +417,13 @@ function MappingRow({
 }) {
   return (
     <div className="px-4 py-4 bg-white">
-      <div className="flex items-end gap-2.5">
+      <div className="border border-sf-neutral-30 rounded-xl overflow-hidden">
 
         {/* From */}
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-sf-neutral-70 uppercase tracking-wide mb-1.5">
-            From
-          </div>
+        <div className="px-4 pt-4 pb-3">
+          <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-2">
+            Replace this field
+          </p>
           <FieldPicker
             value={entry.oldField}
             availableFields={availableFields}
@@ -433,18 +433,20 @@ function MappingRow({
           />
         </div>
 
-        {/* Arrow */}
-        <div className="pb-2.5 shrink-0">
-          <svg className="w-4 h-4 text-sf-neutral-40" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+        {/* Arrow divider */}
+        <div className="flex items-center gap-3 px-4 py-1 bg-sf-neutral-10 border-y border-sf-neutral-30">
+          <div className="flex-1 h-px bg-sf-neutral-30" />
+          <svg className="w-4 h-4 text-sf-neutral-50 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
+          <div className="flex-1 h-px bg-sf-neutral-30" />
         </div>
 
         {/* To */}
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-sf-neutral-70 uppercase tracking-wide mb-1.5">
-            To
-          </div>
+        <div className="px-4 pt-3 pb-4">
+          <p className="text-xs font-semibold text-sf-neutral-60 uppercase tracking-wide mb-2">
+            With this field
+          </p>
           <FieldPicker
             value={entry.newField}
             availableFields={availableFields}
@@ -454,20 +456,17 @@ function MappingRow({
           />
         </div>
 
-        {/* Mode toggle */}
-        <div className="pb-1 shrink-0">
-          <div className="text-xs font-semibold text-sf-neutral-70 uppercase tracking-wide mb-1.5">
-            Action
-          </div>
-          <div className="flex rounded-lg border border-sf-neutral-30 overflow-hidden text-xs">
+        {/* Footer: action + remove */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-sf-neutral-10 border-t border-sf-neutral-30">
+          <div className="flex rounded-lg border border-sf-neutral-30 overflow-hidden text-xs bg-white">
             <button
               type="button"
               onClick={() => onUpdate({ mode: 'replace' })}
               title="Remove the old field and put the new field in its place"
-              className={`px-3 py-2 font-medium transition ${
+              className={`px-3 py-1.5 font-medium transition ${
                 entry.mode === 'replace'
                   ? 'bg-sf-blue text-white'
-                  : 'bg-white text-sf-neutral-70 hover:bg-sf-neutral-10'
+                  : 'text-sf-neutral-70 hover:bg-sf-neutral-10'
               }`}
             >
               Replace
@@ -476,28 +475,24 @@ function MappingRow({
               type="button"
               onClick={() => onUpdate({ mode: 'keep-both' })}
               title="Keep the old field and insert the new field alongside it"
-              className={`px-3 py-2 font-medium transition border-l border-sf-neutral-30 ${
+              className={`px-3 py-1.5 font-medium transition border-l border-sf-neutral-30 ${
                 entry.mode === 'keep-both'
                   ? 'bg-sf-blue text-white'
-                  : 'bg-white text-sf-neutral-70 hover:bg-sf-neutral-10'
+                  : 'text-sf-neutral-70 hover:bg-sf-neutral-10'
               }`}
             >
-              + Add
+              + Add Alongside
             </button>
           </div>
-        </div>
-
-        {/* Remove */}
-        <div className="pb-1 shrink-0">
           <button
             type="button"
             onClick={onRemove}
-            title="Remove this mapping"
-            className="p-2 rounded-lg text-sf-neutral-40 hover:text-sf-red hover:bg-red-50 transition"
+            className="flex items-center gap-1 text-xs text-sf-neutral-50 hover:text-sf-red transition"
           >
-            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
+            Remove
           </button>
         </div>
       </div>
