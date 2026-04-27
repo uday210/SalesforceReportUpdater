@@ -1,0 +1,34 @@
+.report-card {
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+}
+.card-deselected {
+    opacity: 0.55;
+}
+.card-header {
+    border-bottom: 1px solid #f3f2f1;
+    background: #fafaf9;
+    border-radius: 0.25rem 0.25rem 0 0;
+}
+.ops-panel {
+    background: #fff;
+    border-radius: 0 0 0.25rem 0.25rem;
+}
+.mapping-card {
+    border: 1px solid #e0dedd;
+    border-radius: 0.25rem;
+    background: #f9f9f9;
+}
+.divider-arrow {
+    color: #706e6b;
+    font-size: 1rem;
+}
+.deploy-bar {
+    background: #f3f2f1;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+}
+.report-cards {
+    max-height: 60vh;
+    overflow-y: auto;
+}

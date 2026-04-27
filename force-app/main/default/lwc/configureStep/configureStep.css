@@ -1,0 +1,14 @@
+.field-list {
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid #dddbda;
+    border-top: none;
+    border-radius: 0 0 0.25rem 0.25rem;
+}
+.field-row { border-bottom: 1px solid #f3f2f1; cursor: pointer; }
+.field-row:hover { background: #f3f2f1; }
+.field-row.selected { background: #eaf5fe; }
+.select-all-row { background: #f3f2f1; border: 1px solid #dddbda; border-radius: 0.25rem 0.25rem 0 0; }
+.field-label { font-weight: 600; }
+.badge-reference { background: #e0d0ff; color: #5a1ba8; }
+.badge-default   { background: #f3f2f1; color: #3e3e3c; }

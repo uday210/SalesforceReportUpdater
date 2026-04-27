@@ -1,0 +1,9 @@
+.result-row {
+    border-bottom: 1px solid #f3f2f1;
+    border-radius: 0.25rem;
+}
+.result-row-error {
+    border-bottom: 1px solid #fdd8d8;
+    border-radius: 0.25rem;
+    background: #fff5f5;
+}

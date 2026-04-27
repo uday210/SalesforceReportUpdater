@@ -1,0 +1,82 @@
+<template>
+
+    <!-- Deploying spinner -->
+    <template if:true={deploying}>
+        <div class="slds-align_absolute-center slds-p-around_xx-large">
+            <lightning-spinner alternative-text="Deploying…" size="large"></lightning-spinner>
+            <p class="slds-text-heading_small slds-m-top_medium">Deploying changes to Salesforce…</p>
+        </div>
+    </template>
+
+    <!-- Error -->
+    <template if:true={deployError}>
+        <lightning-card>
+            <div class="slds-p-around_medium">
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <lightning-icon icon-name="utility:error" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                    {deployError}
+                </div>
+                <div class="slds-grid slds-gutters_x-small slds-m-top_medium">
+                    <lightning-button label="← Back to Results" onclick={handleBack}></lightning-button>
+                    <lightning-button label="Start Over" onclick={handleStartOver}></lightning-button>
+                </div>
+            </div>
+        </lightning-card>
+    </template>
+
+    <!-- Success -->
+    <template if:true={hasResult}>
+        <lightning-card>
+            <div class="slds-p-around_medium">
+
+                <!-- Summary -->
+                <div class="slds-align_absolute-center slds-p-vertical_medium slds-text-align_center">
+                    <lightning-icon icon-name="utility:check" size="large" variant="success"></lightning-icon>
+                    <h2 class="slds-text-heading_medium slds-m-top_small">Deploy Complete</h2>
+                    <p class="slds-text-color_weak">
+                        <strong>{updatedCount}</strong> report(s) updated
+                        <template if:true={hasErrors}>, <strong>{errorCount}</strong> failed</template>
+                    </p>
+                </div>
+
+                <!-- Updated list -->
+                <template if:true={hasUpdated}>
+                    <div class="slds-m-top_medium">
+                        <h3 class="slds-text-title_caps slds-text-color_weak slds-m-bottom_x-small">Updated</h3>
+                        <template for:each={deployResult.updated} for:item="r">
+                            <div key={r.reportId} class="slds-grid slds-grid_vertical-align-center slds-p-around_x-small result-row">
+                                <lightning-icon icon-name="utility:success" size="x-small" variant="success" class="slds-m-right_x-small"></lightning-icon>
+                                <span class="slds-truncate">{r.reportName}</span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Errors list -->
+                <template if:true={hasErrors}>
+                    <div class="slds-m-top_medium">
+                        <h3 class="slds-text-title_caps slds-text-color_weak slds-m-bottom_x-small">Failed</h3>
+                        <template for:each={deployResult.errors} for:item="e">
+                            <div key={e.reportId} class="slds-grid slds-grid_vertical-align-center slds-p-around_x-small result-row-error">
+                                <lightning-icon icon-name="utility:error" size="x-small" variant="error" class="slds-m-right_x-small"></lightning-icon>
+                                <div>
+                                    <span class="slds-truncate"><strong>{e.reportName}</strong></span>
+                                    <span class="slds-text-color_error slds-text-body_small slds-m-left_x-small">— {e.error}</span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <div class="slds-grid slds-gutters_x-small slds-m-top_large">
+                    <template if:true={hasErrors}>
+                        <lightning-button label="← Back to Results" onclick={handleBack}></lightning-button>
+                    </template>
+                    <lightning-button variant="brand" label="Start Over" onclick={handleStartOver}></lightning-button>
+                </div>
+
+            </div>
+        </lightning-card>
+    </template>
+
+</template>

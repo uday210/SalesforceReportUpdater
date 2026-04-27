@@ -1,0 +1,46 @@
+<template>
+    <div class="app-shell slds-p-around_medium">
+        <div class="slds-media slds-media_center slds-m-bottom_medium">
+            <div class="slds-media__figure">
+                <lightning-icon icon-name="standard:report" size="medium"></lightning-icon>
+            </div>
+            <div class="slds-media__body">
+                <h1 class="slds-text-heading_large">Bulk Report Updater</h1>
+                <p class="slds-text-color_weak slds-text-body_small">Salesforce field reference migration tool</p>
+            </div>
+        </div>
+
+        <lightning-progress-indicator current-step={currentStep} type="path" has-error="false">
+            <lightning-progress-step label="Configure" value="configure"></lightning-progress-step>
+            <lightning-progress-step label="Review" value="results"></lightning-progress-step>
+            <lightning-progress-step label="Deploy" value="deploy"></lightning-progress-step>
+        </lightning-progress-indicator>
+
+        <div class="slds-m-top_medium">
+            <template if:true={isConfigureStep}>
+                <c-configure-step onfindreports={handleFindReports}></c-configure-step>
+            </template>
+
+            <template if:true={isResultsStep}>
+                <c-scan-results-step
+                    scanning={scanning}
+                    scan-result={scanResult}
+                    scan-error={scanError}
+                    available-fields={loadedFields}
+                    onback={handleBackToConfigure}
+                    ondeploy={handleDeploy}
+                ></c-scan-results-step>
+            </template>
+
+            <template if:true={isDeployStep}>
+                <c-deploy-step
+                    deploying={deploying}
+                    deploy-result={deployResult}
+                    deploy-error={deployError}
+                    onstartover={handleStartOver}
+                    onback={handleBackToResults}
+                ></c-deploy-step>
+            </template>
+        </div>
+    </div>
+</template>

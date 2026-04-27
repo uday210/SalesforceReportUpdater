@@ -1,0 +1,222 @@
+<template>
+    <!-- Scanning -->
+    <template if:true={scanning}>
+        <div class="slds-align_absolute-center slds-p-around_xx-large">
+            <lightning-spinner alternative-text="Scanning reports..." size="large"></lightning-spinner>
+            <p class="slds-text-heading_small slds-m-top_medium">Scanning reports…</p>
+        </div>
+    </template>
+
+    <!-- Error -->
+    <template if:true={scanError}>
+        <lightning-card>
+            <div class="slds-p-around_medium">
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <lightning-icon icon-name="utility:error" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                    {scanError}
+                </div>
+                <lightning-button label="← Back" onclick={handleBack} class="slds-m-top_medium"></lightning-button>
+            </div>
+        </lightning-card>
+    </template>
+
+    <!-- Results -->
+    <template if:true={hasResults}>
+        <lightning-card>
+            <div class="slds-p-around_medium">
+
+                <!-- Header -->
+                <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+                    <div>
+                        <h2 class="slds-text-heading_medium">Reports Found</h2>
+                        <p class="slds-text-color_weak">
+                            Scanned <strong>{scanResult.totalScanned}</strong> reports —
+                            <strong>{scanResult.totalAffected}</strong> match your criteria.
+                            Configure field operations on each report, then deploy.
+                        </p>
+                    </div>
+                    <lightning-button label="← Reconfigure" onclick={handleBack}></lightning-button>
+                </div>
+
+                <!-- No results -->
+                <template if:true={noReports}>
+                    <div class="slds-align_absolute-center slds-p-around_xx-large slds-text-align_center">
+                        <lightning-icon icon-name="utility:check" size="large" variant="success"></lightning-icon>
+                        <p class="slds-text-heading_small slds-m-top_medium">No reports reference those fields</p>
+                    </div>
+                </template>
+
+                <!-- Deploy bar -->
+                <template if:false={noReports}>
+                    <div class="deploy-bar slds-grid slds-grid_align-spread slds-p-around_small slds-m-bottom_medium">
+                        <label class="slds-checkbox__label">
+                            <input type="checkbox" class="slds-checkbox" checked={allSelected}
+                                   onchange={toggleSelectAll} />
+                            <span class="slds-checkbox_faux"></span>
+                            <span class="slds-form-element__label">
+                                {selectedCount} of {totalCount} reports selected
+                            </span>
+                        </label>
+                        <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-center">
+                            <template if:true={deployBlockReason}>
+                                <span class="slds-text-color_weak slds-text-body_small">{deployBlockReason}</span>
+                            </template>
+                            <lightning-button
+                                variant="brand"
+                                label={deployLabel}
+                                icon-name="utility:upload"
+                                disabled={deployDisabled}
+                                onclick={handleDeploy}
+                            ></lightning-button>
+                        </div>
+                    </div>
+
+                    <!-- Report cards -->
+                    <div class="report-cards">
+                        <template for:each={processedReports} for:item="report">
+                            <div key={report.reportId} class={report.cardClass}>
+
+                                <!-- Card header -->
+                                <div class="slds-grid slds-grid_vertical-align-center slds-p-around_small card-header">
+                                    <label class="slds-checkbox__label slds-m-right_small">
+                                        <input type="checkbox" class="slds-checkbox"
+                                               checked={report.isSelected}
+                                               data-report-id={report.reportId}
+                                               onchange={handleReportToggle} />
+                                        <span class="slds-checkbox_faux"></span>
+                                    </label>
+                                    <div class="slds-grow slds-truncate">
+                                        <p class="slds-text-body_regular slds-truncate"><strong>{report.reportName}</strong></p>
+                                        <p class="slds-text-body_small slds-text-color_weak">{report.folderName}</p>
+                                    </div>
+                                    <div class="slds-grid slds-grid_vertical-align-center slds-gutters_x-small slds-m-left_small">
+                                        <lightning-badge label={report.statusLabel} class={report.badgeClass}></lightning-badge>
+                                        <lightning-button-icon
+                                            icon-name={report.expandIcon}
+                                            alternative-text="Toggle"
+                                            data-report-id={report.reportId}
+                                            onclick={handleToggleExpand}
+                                            size="small"
+                                            variant="border-filled"
+                                        ></lightning-button-icon>
+                                    </div>
+                                </div>
+
+                                <!-- Operations panel -->
+                                <template if:true={report.isExpanded}>
+                                    <div class="ops-panel slds-p-around_small">
+                                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_x-small">
+                                            <span class="slds-text-title_caps slds-text-color_weak">Field Operations</span>
+                                            <lightning-button
+                                                label="+ Add Operation"
+                                                variant="base"
+                                                data-report-id={report.reportId}
+                                                onclick={handleAddMapping}
+                                            ></lightning-button>
+                                        </div>
+
+                                        <template if:true={report.hasMappings}>
+                                            <template for:each={report.mappings} for:item="mapping">
+                                                <div key={mapping.id} class="mapping-card slds-p-around_small slds-m-bottom_x-small">
+
+                                                    <!-- Replace mode: From + To -->
+                                                    <template if:true={mapping.isReplaceMode}>
+                                                        <lightning-combobox
+                                                            label="Replace this field"
+                                                            value={mapping.oldField}
+                                                            options={availableFieldOptions}
+                                                            placeholder="Select field to replace…"
+                                                            data-report-id={report.reportId}
+                                                            data-mapping-id={mapping.id}
+                                                            data-role="from"
+                                                            onchange={handleFieldChange}
+                                                        ></lightning-combobox>
+                                                        <div class="divider-arrow slds-text-align_center slds-p-vertical_xx-small">↓</div>
+                                                        <lightning-combobox
+                                                            label="With this field"
+                                                            value={mapping.newField}
+                                                            options={availableFieldOptions}
+                                                            placeholder="Select new field…"
+                                                            data-report-id={report.reportId}
+                                                            data-mapping-id={mapping.id}
+                                                            data-role="to"
+                                                            onchange={handleFieldChange}
+                                                        ></lightning-combobox>
+                                                    </template>
+
+                                                    <!-- Add-alongside mode: single picker -->
+                                                    <template if:false={mapping.isReplaceMode}>
+                                                        <lightning-combobox
+                                                            label="Add this field to the report"
+                                                            value={mapping.newField}
+                                                            options={mapping.addableOptions}
+                                                            placeholder="Select field to add…"
+                                                            data-report-id={report.reportId}
+                                                            data-mapping-id={mapping.id}
+                                                            data-role="to"
+                                                            onchange={handleFieldChange}
+                                                        ></lightning-combobox>
+                                                    </template>
+
+                                                    <!-- Footer: mode + remove -->
+                                                    <div class="slds-grid slds-grid_align-spread slds-m-top_x-small">
+                                                        <lightning-button-group>
+                                                            <lightning-button
+                                                                label="Replace"
+                                                                variant={mapping.replaceVariant}
+                                                                data-report-id={report.reportId}
+                                                                data-mapping-id={mapping.id}
+                                                                data-mode="replace"
+                                                                onclick={handleModeChange}
+                                                            ></lightning-button>
+                                                            <lightning-button
+                                                                label="+ Add Alongside"
+                                                                variant={mapping.addVariant}
+                                                                data-report-id={report.reportId}
+                                                                data-mapping-id={mapping.id}
+                                                                data-mode="keep-both"
+                                                                onclick={handleModeChange}
+                                                            ></lightning-button>
+                                                        </lightning-button-group>
+                                                        <lightning-button
+                                                            label="Remove"
+                                                            icon-name="utility:delete"
+                                                            variant="destructive-text"
+                                                            data-report-id={report.reportId}
+                                                            data-mapping-id={mapping.id}
+                                                            onclick={handleRemoveMapping}
+                                                        ></lightning-button>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </template>
+
+                                        <template if:false={report.hasMappings}>
+                                            <div class="slds-align_absolute-center slds-p-medium slds-text-color_weak slds-text-align_center">
+                                                <p>No operations yet — click <strong>+ Add Operation</strong></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Scan errors -->
+                    <template if:true={hasScanErrors}>
+                        <details class="slds-m-top_medium">
+                            <summary class="slds-text-color_weak">{scanResult.errors.length} report(s) could not be scanned</summary>
+                            <template for:each={scanResult.errors} for:item="err">
+                                <p key={err.reportId} class="slds-text-body_small slds-m-top_x-small">
+                                    <strong>{err.reportName}</strong> — <span class="slds-text-color_error">{err.error}</span>
+                                </p>
+                            </template>
+                        </details>
+                    </template>
+                </template>
+
+            </div>
+        </lightning-card>
+    </template>
+</template>
