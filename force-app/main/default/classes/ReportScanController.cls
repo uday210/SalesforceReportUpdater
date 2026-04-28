@@ -47,7 +47,7 @@ public with sharing class ReportScanController {
                     r.Id, r.Name,
                     r.FolderName != null ? r.FolderName : '',
                     rptType, foundFields,
-                    JSON.serialize(meta)
+                    serializeMeta(meta)
                 ));
             } catch (Exception e) {
                 errors.add(new ScanError(r.Id, r.Name, e.getMessage()));
@@ -64,6 +64,47 @@ public with sharing class ReportScanController {
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
+
+    // JSON.serialize(Reports.ReportMetadata) returns {} because the class has private
+    // fields. Build the JSON manually from getter methods instead.
+    private static String serializeMeta(Reports.ReportMetadata meta) {
+        List<Object> gd = new List<Object>();
+        if (meta.getGroupingsDown() != null) {
+            for (Reports.GroupingInfo g : meta.getGroupingsDown()) {
+                gd.add(new Map<String, Object>{
+                    'name'            => g.getName(),
+                    'dateGranularity' => String.valueOf(g.getDateGranularity())
+                });
+            }
+        }
+        List<Object> ga = new List<Object>();
+        if (meta.getGroupingsAcross() != null) {
+            for (Reports.GroupingInfo g : meta.getGroupingsAcross()) {
+                ga.add(new Map<String, Object>{
+                    'name'            => g.getName(),
+                    'dateGranularity' => String.valueOf(g.getDateGranularity())
+                });
+            }
+        }
+        List<Object> filters = new List<Object>();
+        if (meta.getReportFilters() != null) {
+            for (Reports.ReportFilter f : meta.getReportFilters()) {
+                filters.add(new Map<String, Object>{
+                    'column'     => f.getColumn(),
+                    'operator'   => f.getOperator(),
+                    'value'      => f.getValue(),
+                    'filterType' => f.getFilterType()
+                });
+            }
+        }
+        Map<String, Object> m = new Map<String, Object>{
+            'detailColumns'  => meta.getDetailColumns()  != null ? meta.getDetailColumns()  : new List<String>(),
+            'groupingsDown'  => gd,
+            'groupingsAcross'=> ga,
+            'reportFilters'  => filters
+        };
+        return JSON.serialize(m);
+    }
 
     private static List<String> collectPaths(Reports.ReportMetadata meta) {
         List<String> paths = new List<String>();
