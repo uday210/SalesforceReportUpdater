@@ -39,14 +39,56 @@ public with sharing class ReportUtils {
                 });
             }
         }
-        return JSON.serialize(new Map<String, Object>{
-            'detailColumns'      => meta.getDetailColumns()  != null ? meta.getDetailColumns()  : new List<String>(),
-            'groupingsDown'      => gd,
-            'groupingsAcross'    => ga,
-            'reportFilters'      => filters,
-            'reportBooleanFilter'=> meta.getReportBooleanFilter(),
-            'aggregates'         => meta.getAggregates() != null ? meta.getAggregates() : new List<String>()
-        });
+        // Sort columns
+        List<Object> sortBy = new List<Object>();
+        if (meta.getSortBy() != null) {
+            for (Reports.SortColumn sc : meta.getSortBy()) {
+                sortBy.add(new Map<String, Object>{
+                    'column'    => sc.getColumn(),
+                    'sortOrder' => String.valueOf(sc.getSortOrder())
+                });
+            }
+        }
+        // Standard date filter
+        Map<String, Object> sdf = null;
+        if (meta.getStandardDateFilter() != null) {
+            sdf = new Map<String, Object>{
+                'column'        => meta.getStandardDateFilter().getColumn(),
+                'durationValue' => meta.getStandardDateFilter().getDurationValue(),
+                'startDate'     => meta.getStandardDateFilter().getStartDate(),
+                'endDate'       => meta.getStandardDateFilter().getEndDate()
+            };
+        }
+        // Standard filters
+        List<Object> stdFilters = new List<Object>();
+        if (meta.getStandardFilters() != null) {
+            for (Reports.StandardFilter sf : meta.getStandardFilters()) {
+                stdFilters.add(new Map<String, Object>{ 'name' => sf.getName(), 'value' => sf.getValue() });
+            }
+        }
+
+        Map<String, Object> m = new Map<String, Object>{
+            'id'                  => meta.getId(),
+            'name'                => meta.getName(),
+            'reportFormat'        => meta.getReportFormat() != null ? meta.getReportFormat().name() : 'TABULAR',
+            'detailColumns'       => meta.getDetailColumns()  != null ? meta.getDetailColumns()  : new List<String>(),
+            'groupingsDown'       => gd,
+            'groupingsAcross'     => ga,
+            'reportFilters'       => filters,
+            'reportBooleanFilter' => meta.getReportBooleanFilter(),
+            'aggregates'          => meta.getAggregates() != null ? meta.getAggregates() : new List<String>(),
+            'sortBy'              => sortBy,
+            'standardFilters'     => stdFilters
+        };
+        if (sdf != null)                m.put('standardDateFilter', sdf);
+        if (meta.getScope() != null)    m.put('scope', meta.getScope());
+        if (meta.getReportType() != null) {
+            m.put('reportType', new Map<String, Object>{
+                'type'  => meta.getReportType().getType(),
+                'label' => meta.getReportType().getLabel()
+            });
+        }
+        return JSON.serialize(m);
     }
 
     public static Boolean fieldMatches(String fieldInReport, String searchField) {
@@ -73,8 +115,24 @@ public with sharing class ReportUtils {
         Boolean hasChanges = false;
 
         for (FieldMapping m : mappings) {
-            if (String.isBlank(m.newField)) continue;
+            Boolean isRemove   = m.mode == 'remove';
             Boolean isKeepBoth = m.mode == 'keep-both';
+
+            // Remove mode: strip oldField from every location, no replacement
+            if (isRemove) {
+                if (String.isBlank(m.oldField)) continue;
+                List<Object> rc = (List<Object>) updated.get('detailColumns');
+                if (rc != null) { List<Object> nx = new List<Object>(); for (Object c : rc) { if (!fieldMatches((String)c, m.oldField)) nx.add(c); else hasChanges = true; } updated.put('detailColumns', nx); }
+                List<Object> rgd = (List<Object>) updated.get('groupingsDown');
+                if (rgd != null) { List<Object> nx = new List<Object>(); for (Object g : rgd) { String n = (String)((Map<String,Object>)g).get('name'); if (!fieldMatches(n, m.oldField)) nx.add(g); else hasChanges = true; } updated.put('groupingsDown', nx); }
+                List<Object> rga = (List<Object>) updated.get('groupingsAcross');
+                if (rga != null) { List<Object> nx = new List<Object>(); for (Object g : rga) { String n = (String)((Map<String,Object>)g).get('name'); if (!fieldMatches(n, m.oldField)) nx.add(g); else hasChanges = true; } updated.put('groupingsAcross', nx); }
+                List<Object> rf = (List<Object>) updated.get('reportFilters');
+                if (rf != null) { List<Object> nx = new List<Object>(); for (Object f : rf) { String col = (String)((Map<String,Object>)f).get('column'); if (!fieldMatches(col, m.oldField)) nx.add(f); else hasChanges = true; } updated.put('reportFilters', nx); }
+                continue;
+            }
+
+            if (String.isBlank(m.newField)) continue;
 
             // Add-only: keep-both with no oldField → append new field to columns
             if (isKeepBoth && String.isBlank(m.oldField)) {

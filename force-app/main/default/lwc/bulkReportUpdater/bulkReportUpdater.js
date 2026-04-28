@@ -1,5 +1,8 @@
 import { LightningElement, track } from 'lwc';
 import scanReports   from '@salesforce/apex/ReportScanController.scanReports';
+import scanByName    from '@salesforce/apex/ReportScanController.scanByName';
+import scanByFolders from '@salesforce/apex/ReportScanController.scanByFolders';
+import scanAll       from '@salesforce/apex/ReportScanController.scanAll';
 import updateReports from '@salesforce/apex/ReportUpdateController.updateReports';
 
 export default class BulkReportUpdater extends LightningElement {
@@ -17,15 +20,23 @@ export default class BulkReportUpdater extends LightningElement {
     get isDeployStep()    { return this.currentStep === 'deploy';     }
 
     async handleFindReports(event) {
-        const { oldFieldNames, objectType, fields } = event.detail;
-        this.loadedFields = fields;
+        const { mode, oldFieldNames, objectType, fields, namePattern, folderNames } = event.detail;
+        this.loadedFields = fields || [];
         this.scanning     = true;
         this.scanError    = null;
         this.scanResult   = null;
         this.currentStep  = 'results';
 
         try {
-            this.scanResult = await scanReports({ objectType, oldFieldNames });
+            if (mode === 'name') {
+                this.scanResult = await scanByName({ namePattern });
+            } else if (mode === 'folder') {
+                this.scanResult = await scanByFolders({ folderNames });
+            } else if (mode === 'all') {
+                this.scanResult = await scanAll();
+            } else {
+                this.scanResult = await scanReports({ objectType, oldFieldNames });
+            }
         } catch (err) {
             this.scanError = err.body?.message || 'Scan failed';
         } finally {
@@ -41,11 +52,11 @@ export default class BulkReportUpdater extends LightningElement {
             const report = reports.find(r => r.reportId === entry.reportId);
             if (!report) return [];
             return [{
-                reportId:  report.reportId,
+                reportId:   report.reportId,
                 reportName: report.reportName,
-                mappings:  entry.mappings.map(m => ({
+                mappings:   entry.mappings.map(m => ({
                     oldField: m.oldField || '',
-                    newField: m.newField,
+                    newField: m.newField || '',
                     mode:     m.mode
                 }))
             }];

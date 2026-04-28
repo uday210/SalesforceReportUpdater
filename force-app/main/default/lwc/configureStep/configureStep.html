@@ -1,111 +1,151 @@
 <template>
-    <lightning-card title="Configure Scan" icon-name="utility:settings">
+    <lightning-card title="Find Reports" icon-name="utility:search">
         <div class="slds-p-around_medium">
 
-            <!-- Object name + Load button -->
-            <div class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_medium">
-                <div class="slds-col slds-grow">
-                    <lightning-input
-                        label="Object API Name"
-                        placeholder="e.g. Opportunity or My_Object__c"
-                        value={objectName}
-                        onchange={handleObjectNameChange}
-                        onkeyup={handleKeyUp}
-                    ></lightning-input>
-                </div>
-                <div class="slds-col slds-shrink">
-                    <lightning-button
-                        label="Load Fields"
-                        onclick={handleLoadFields}
-                        disabled={loadDisabled}
-                    ></lightning-button>
-                </div>
+            <!-- Mode selector -->
+            <div class="mode-bar slds-grid slds-gutters_x-small slds-m-bottom_medium">
+                <button class={modeClass_object} onclick={setModeObject}>By Object &amp; Fields</button>
+                <button class={modeClass_name}   onclick={setModeName}>By Report Name</button>
+                <button class={modeClass_folder} onclick={setModeFolder}>By Folder</button>
+                <button class={modeClass_all}    onclick={setModeAll}>Browse All</button>
             </div>
 
-            <!-- Error -->
-            <template if:true={fieldsError}>
-                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
-                    <span class="slds-assistive-text">error</span>
-                    <lightning-icon icon-name="utility:error" size="x-small" class="slds-m-right_x-small"></lightning-icon>
-                    {fieldsError}
+            <!-- ── Mode 1: By Object & Fields ────────────────────────────────── -->
+            <template if:true={isObjectMode}>
+                <div class="slds-grid slds-gutters slds-grid_vertical-align-end slds-m-bottom_medium">
+                    <div class="slds-col slds-grow">
+                        <lightning-input
+                            label="Object API Name"
+                            placeholder="e.g. Opportunity or My_Object__c"
+                            value={objectName}
+                            onchange={handleObjectNameChange}
+                            onkeyup={handleKeyUp}
+                        ></lightning-input>
+                    </div>
+                    <div class="slds-col slds-shrink">
+                        <lightning-button label="Load Fields" onclick={handleLoadFields} disabled={loadDisabled}></lightning-button>
+                    </div>
+                </div>
+
+                <template if:true={fieldsError}>
+                    <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                        <lightning-icon icon-name="utility:error" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                        {fieldsError}
+                    </div>
+                </template>
+                <template if:true={loadingFields}>
+                    <lightning-spinner alternative-text="Loading fields…" size="small"></lightning-spinner>
+                </template>
+
+                <template if:true={hasFields}>
+                    <div class="slds-form-element slds-m-bottom_medium">
+                        <div class="slds-form-element__label slds-m-bottom_x-small">
+                            <strong>Select Fields to Investigate</strong>
+                            <span class="slds-text-color_weak slds-m-left_x-small">
+                                ({selectedCount} selected — leave all unchecked to scan all reports on this object)
+                            </span>
+                        </div>
+                        <lightning-input type="search" label="Search fields" variant="label-hidden"
+                            placeholder="Search by label or API name…" onchange={handleSearch} class="slds-m-bottom_x-small">
+                        </lightning-input>
+                        <div class="slds-p-around_x-small slds-border_bottom select-all-row">
+                            <label class="slds-checkbox__label">
+                                <input type="checkbox" class="slds-checkbox" checked={allSelected} onchange={toggleAll} />
+                                <span class="slds-checkbox_faux"></span>
+                                <span class="slds-form-element__label">{filteredCountLabel}</span>
+                            </label>
+                        </div>
+                        <div class="field-list">
+                            <template for:each={filteredFields} for:item="field">
+                                <div key={field.apiName} class={field.rowClass}>
+                                    <label class="slds-checkbox__label">
+                                        <input type="checkbox" class="slds-checkbox" checked={field.selected}
+                                            data-apiname={field.apiName} onchange={handleFieldToggle} />
+                                        <span class="slds-checkbox_faux"></span>
+                                        <span class="slds-form-element__label">
+                                            <span class="field-label">{field.label}</span>
+                                            <span class="slds-badge slds-m-left_x-small {field.typeBadgeClass}">{field.typeLabel}</span>
+                                            <span class="slds-text-color_weak slds-text-body_small slds-m-left_x-small">{field.apiName}</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </template>
+                            <template if:true={noFieldsMatch}>
+                                <div class="slds-p-around_medium slds-text-align_center slds-text-color_weak">No fields match</div>
+                            </template>
+                        </div>
+                    </div>
+                    <lightning-button variant="brand" label={findReportsLabel} icon-name="utility:search" onclick={handleFindReports}></lightning-button>
+                </template>
+            </template>
+
+            <!-- ── Mode 2: By Report Name ──────────────────────────────────── -->
+            <template if:true={isNameMode}>
+                <p class="slds-text-color_weak slds-text-body_small slds-m-bottom_small">
+                    Find reports whose name contains the text you enter. Works for all report types.
+                </p>
+                <div class="slds-grid slds-gutters slds-grid_vertical-align-end">
+                    <div class="slds-col slds-grow">
+                        <lightning-input
+                            label="Report Name"
+                            placeholder="e.g. Pipeline, Q4 Forecast, Territory…"
+                            value={namePattern}
+                            onchange={handleNamePatternChange}
+                            onkeyup={handleNameKeyUp}
+                        ></lightning-input>
+                    </div>
+                    <div class="slds-col slds-shrink">
+                        <lightning-button variant="brand" label="Find Reports" icon-name="utility:search"
+                            disabled={nameSearchDisabled} onclick={handleFindReports}></lightning-button>
+                    </div>
                 </div>
             </template>
 
-            <!-- Spinner -->
-            <template if:true={loadingFields}>
-                <lightning-spinner alternative-text="Loading fields..." size="small"></lightning-spinner>
-            </template>
+            <!-- ── Mode 3: By Folder ───────────────────────────────────────── -->
+            <template if:true={isFolderMode}>
+                <p class="slds-text-color_weak slds-text-body_small slds-m-bottom_small">
+                    Select one or more report folders to update all reports within them at once.
+                </p>
+                <template if:false={hasFolders}>
+                    <div class="slds-grid slds-grid_vertical-align-center slds-gutters_x-small">
+                        <lightning-button label="Load Folders" icon-name="utility:open_folder"
+                            onclick={handleLoadFolders} disabled={loadingFolders}></lightning-button>
+                        <template if:true={loadingFolders}>
+                            <lightning-spinner alternative-text="Loading folders…" size="x-small"></lightning-spinner>
+                        </template>
+                    </div>
+                </template>
 
-            <!-- Field list -->
-            <template if:true={hasFields}>
-                <div class="slds-form-element slds-m-bottom_medium">
+                <template if:true={hasFolders}>
                     <div class="slds-form-element__label slds-m-bottom_x-small">
-                        <strong>Select Fields to Investigate</strong>
-                        <span class="slds-text-color_weak slds-m-left_x-small">
-                            ({selectedCount} selected — leave all unchecked to scan all reports)
-                        </span>
+                        <strong>Select Folders</strong>
+                        <span class="slds-text-color_weak slds-m-left_x-small">({selectedFolderCount} selected)</span>
                     </div>
-
-                    <!-- Search -->
-                    <lightning-input
-                        type="search"
-                        label="Search fields"
-                        variant="label-hidden"
-                        placeholder="Search by label or API name…"
-                        onchange={handleSearch}
-                        class="slds-m-bottom_x-small"
-                    ></lightning-input>
-
-                    <!-- Select all row -->
-                    <div class="slds-p-around_x-small slds-border_bottom select-all-row">
-                        <label class="slds-checkbox__label">
-                            <input
-                                type="checkbox"
-                                class="slds-checkbox"
-                                checked={allSelected}
-                                onchange={toggleAll}
-                            />
-                            <span class="slds-checkbox_faux"></span>
-                            <span class="slds-form-element__label">{filteredCountLabel}</span>
-                        </label>
-                    </div>
-
-                    <!-- Field rows -->
-                    <div class="field-list">
-                        <template for:each={filteredFields} for:item="field">
-                            <div key={field.apiName} class={field.rowClass}>
+                    <div class="field-list slds-m-bottom_medium">
+                        <template for:each={folderOptions} for:item="folder">
+                            <div key={folder.name} class="field-row slds-p-around_x-small">
                                 <label class="slds-checkbox__label">
-                                    <input
-                                        type="checkbox"
-                                        class="slds-checkbox"
-                                        checked={field.selected}
-                                        data-apiname={field.apiName}
-                                        onchange={handleFieldToggle}
-                                    />
+                                    <input type="checkbox" class="slds-checkbox" checked={folder.selected}
+                                        data-folder={folder.name} onchange={handleFolderToggle} />
                                     <span class="slds-checkbox_faux"></span>
-                                    <span class="slds-form-element__label">
-                                        <span class="field-label">{field.label}</span>
-                                        <span class="slds-badge slds-m-left_x-small {field.typeBadgeClass}">{field.typeLabel}</span>
-                                        <span class="slds-text-color_weak slds-text-body_small slds-m-left_x-small">{field.apiName}</span>
-                                    </span>
+                                    <span class="slds-form-element__label">{folder.name}</span>
                                 </label>
                             </div>
                         </template>
-                        <template if:true={noFieldsMatch}>
-                            <div class="slds-p-around_medium slds-text-align_center slds-text-color_weak">
-                                No fields match
-                            </div>
-                        </template>
                     </div>
-                </div>
+                    <lightning-button variant="brand" label={findByFolderLabel} icon-name="utility:search"
+                        disabled={folderSearchDisabled} onclick={handleFindReports}></lightning-button>
+                </template>
+            </template>
 
-                <!-- Find Reports button -->
-                <lightning-button
-                    variant="brand"
-                    label={findReportsLabel}
-                    icon-name="utility:search"
-                    onclick={handleFindReports}
-                ></lightning-button>
+            <!-- ── Mode 4: Browse All ──────────────────────────────────────── -->
+            <template if:true={isAllMode}>
+                <p class="slds-text-color_weak slds-text-body_small slds-m-bottom_small">
+                    Load all reports in the org (up to 200, sorted by folder then name).
+                    Use the search bar in the next step to narrow down which reports to update.
+                </p>
+                <lightning-button variant="brand" label="Browse All Reports" icon-name="utility:list"
+                    onclick={handleFindReports}></lightning-button>
             </template>
 
         </div>

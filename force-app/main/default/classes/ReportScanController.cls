@@ -92,6 +92,53 @@ public with sharing class ReportScanController {
         return new List<String>(found);
     }
 
+    // ── Name / Folder / Browse-all scan modes ────────────────────────────────
+
+    @AuraEnabled
+    public static List<String> getReportFolders() {
+        Set<String> seen = new Set<String>();
+        for (Report r : [SELECT FolderName FROM Report WHERE FolderName != null LIMIT 500]) {
+            if (!String.isBlank(r.FolderName)) seen.add(r.FolderName);
+        }
+        List<String> sorted = new List<String>(seen);
+        sorted.sort();
+        return sorted;
+    }
+
+    @AuraEnabled
+    public static ScanResult scanByName(String namePattern) {
+        if (String.isBlank(namePattern)) throw new AuraHandledException('Enter a report name to search');
+        String pat = '%' + namePattern.trim() + '%';
+        return listToResult([SELECT Id, Name, FolderName FROM Report WHERE Name LIKE :pat LIMIT 100]);
+    }
+
+    @AuraEnabled
+    public static ScanResult scanByFolders(List<String> folderNames) {
+        if (folderNames == null || folderNames.isEmpty()) throw new AuraHandledException('Select at least one folder');
+        return listToResult([SELECT Id, Name, FolderName FROM Report WHERE FolderName IN :folderNames LIMIT 200]);
+    }
+
+    @AuraEnabled
+    public static ScanResult scanAll() {
+        return listToResult([SELECT Id, Name, FolderName FROM Report ORDER BY FolderName ASC NULLS LAST, Name ASC LIMIT 200]);
+    }
+
+    private static ScanResult listToResult(List<Report> reports) {
+        List<AffectedReport> out = new List<AffectedReport>();
+        for (Report r : reports) {
+            out.add(new AffectedReport(r.Id, r.Name,
+                r.FolderName != null ? r.FolderName : 'Unfiled Public Reports',
+                '', new List<String>()));
+        }
+        ScanResult result      = new ScanResult();
+        result.totalScanned    = reports.size();
+        result.totalAffected   = out.size();
+        result.affectedReports = out;
+        result.foundOldFields  = new List<String>();
+        result.errors          = new List<ScanError>();
+        return result;
+    }
+
     // ── Inner classes ──────────────────────────────────────────────────────────
 
     public class ScanResult {

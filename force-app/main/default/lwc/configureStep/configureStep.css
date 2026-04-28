@@ -1,3 +1,18 @@
+.mode-bar { flex-wrap: wrap; gap: 0.25rem; }
+.mode-btn {
+    padding: 0.4rem 0.85rem;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: #3e3e3c;
+    white-space: nowrap;
+}
+.mode-btn:hover        { background: #f3f2f1; }
+.mode-btn_active       { background: #0176d3; color: #fff; border-color: #0176d3; font-weight: 600; }
+.mode-btn_active:hover { background: #014486; border-color: #014486; }
+
 .field-list {
     max-height: 18rem;
     overflow-y: auto;

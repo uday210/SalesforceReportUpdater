@@ -46,8 +46,10 @@
                     </div>
                 </template>
 
-                <!-- Deploy bar -->
+                <!-- Deploy bar + report list -->
                 <template if:false={noReports}>
+
+                    <!-- Deploy bar -->
                     <div class="deploy-bar slds-grid slds-grid_align-spread slds-p-around_small slds-m-bottom_medium">
                         <label class="slds-checkbox__label">
                             <input type="checkbox" class="slds-checkbox" checked={allSelected}
@@ -69,6 +71,25 @@
                                 onclick={handleDeploy}
                             ></lightning-button>
                         </div>
+                    </div>
+
+                    <!-- Filter bar -->
+                    <div class="slds-grid slds-grid_vertical-align-center slds-gutters_x-small slds-m-bottom_small">
+                        <div class="slds-grow">
+                            <lightning-input
+                                type="search"
+                                label="Filter reports"
+                                variant="label-hidden"
+                                placeholder="Filter by report name or folder…"
+                                value={reportFilter}
+                                onchange={handleFilterChange}
+                            ></lightning-input>
+                        </div>
+                        <template if:true={isFiltered}>
+                            <span class="slds-text-body_small slds-text-color_weak">
+                                {filteredCount} of {totalCount} shown
+                            </span>
+                        </template>
                     </div>
 
                     <!-- Report cards -->
@@ -107,12 +128,23 @@
                                     <div class="ops-panel slds-p-around_small">
                                         <div class="slds-grid slds-grid_align-spread slds-m-bottom_x-small">
                                             <span class="slds-text-title_caps slds-text-color_weak">Field Operations</span>
-                                            <lightning-button
-                                                label="+ Add Operation"
-                                                variant="base"
-                                                data-report-id={report.reportId}
-                                                onclick={handleAddMapping}
-                                            ></lightning-button>
+                                            <div class="slds-grid slds-gutters_x-small">
+                                                <template if:true={report.showCopyToAll}>
+                                                    <lightning-button
+                                                        label="Copy to All Selected"
+                                                        variant="base"
+                                                        icon-name="utility:copy"
+                                                        data-report-id={report.reportId}
+                                                        onclick={handleCopyToAll}
+                                                    ></lightning-button>
+                                                </template>
+                                                <lightning-button
+                                                    label="+ Add Operation"
+                                                    variant="base"
+                                                    data-report-id={report.reportId}
+                                                    onclick={handleAddMapping}
+                                                ></lightning-button>
+                                            </div>
                                         </div>
 
                                         <template if:true={report.hasMappings}>
@@ -144,8 +176,8 @@
                                                         ></c-searchable-combobox>
                                                     </template>
 
-                                                    <!-- Add-alongside mode: single picker -->
-                                                    <template if:false={mapping.isReplaceMode}>
+                                                    <!-- Add-alongside mode: To picker only -->
+                                                    <template if:true={mapping.isAddMode}>
                                                         <c-searchable-combobox
                                                             label="Add this field to the report"
                                                             value={mapping.newField}
@@ -158,7 +190,21 @@
                                                         ></c-searchable-combobox>
                                                     </template>
 
-                                                    <!-- Footer: mode + remove -->
+                                                    <!-- Remove mode: From picker only -->
+                                                    <template if:true={mapping.isRemoveMode}>
+                                                        <c-searchable-combobox
+                                                            label="Remove this field from the report"
+                                                            value={mapping.oldField}
+                                                            options={availableFieldOptions}
+                                                            placeholder="Search field to remove…"
+                                                            data-report-id={report.reportId}
+                                                            data-mapping-id={mapping.id}
+                                                            data-role="from"
+                                                            onchange={handleFieldChange}
+                                                        ></c-searchable-combobox>
+                                                    </template>
+
+                                                    <!-- Footer: mode toggle + delete -->
                                                     <div class="slds-grid slds-grid_align-spread slds-m-top_x-small">
                                                         <lightning-button-group>
                                                             <lightning-button
@@ -177,9 +223,17 @@
                                                                 data-mode="keep-both"
                                                                 onclick={handleModeChange}
                                                             ></lightning-button>
+                                                            <lightning-button
+                                                                label="Remove Field"
+                                                                variant={mapping.removeVariant}
+                                                                data-report-id={report.reportId}
+                                                                data-mapping-id={mapping.id}
+                                                                data-mode="remove"
+                                                                onclick={handleModeChange}
+                                                            ></lightning-button>
                                                         </lightning-button-group>
                                                         <lightning-button
-                                                            label="Remove"
+                                                            label="Delete"
                                                             icon-name="utility:delete"
                                                             variant="destructive-text"
                                                             data-report-id={report.reportId}
