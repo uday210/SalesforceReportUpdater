@@ -1,0 +1,5 @@
+.slds-dropdown {
+    z-index: 9000;
+    max-height: 14rem;
+    overflow-y: auto;
+}

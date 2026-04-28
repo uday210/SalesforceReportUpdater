@@ -41,10 +41,9 @@ export default class BulkReportUpdater extends LightningElement {
             const report = reports.find(r => r.reportId === entry.reportId);
             if (!report) return [];
             return [{
-                reportId:             report.reportId,
-                reportName:           report.reportName,
-                originalMetadataJson: report.originalMetadataJson,
-                mappings:             entry.mappings.map(m => ({
+                reportId:  report.reportId,
+                reportName: report.reportName,
+                mappings:  entry.mappings.map(m => ({
                     oldField: m.oldField || '',
                     newField: m.newField,
                     mode:     m.mode

@@ -121,41 +121,41 @@
 
                                                     <!-- Replace mode: From + To -->
                                                     <template if:true={mapping.isReplaceMode}>
-                                                        <lightning-combobox
+                                                        <c-searchable-combobox
                                                             label="Replace this field"
                                                             value={mapping.oldField}
                                                             options={availableFieldOptions}
-                                                            placeholder="Select field to replace…"
+                                                            placeholder="Search field to replace…"
                                                             data-report-id={report.reportId}
                                                             data-mapping-id={mapping.id}
                                                             data-role="from"
                                                             onchange={handleFieldChange}
-                                                        ></lightning-combobox>
+                                                        ></c-searchable-combobox>
                                                         <div class="divider-arrow slds-text-align_center slds-p-vertical_xx-small">↓</div>
-                                                        <lightning-combobox
+                                                        <c-searchable-combobox
                                                             label="With this field"
                                                             value={mapping.newField}
                                                             options={availableFieldOptions}
-                                                            placeholder="Select new field…"
+                                                            placeholder="Search new field…"
                                                             data-report-id={report.reportId}
                                                             data-mapping-id={mapping.id}
                                                             data-role="to"
                                                             onchange={handleFieldChange}
-                                                        ></lightning-combobox>
+                                                        ></c-searchable-combobox>
                                                     </template>
 
                                                     <!-- Add-alongside mode: single picker -->
                                                     <template if:false={mapping.isReplaceMode}>
-                                                        <lightning-combobox
+                                                        <c-searchable-combobox
                                                             label="Add this field to the report"
                                                             value={mapping.newField}
                                                             options={mapping.addableOptions}
-                                                            placeholder="Select field to add…"
+                                                            placeholder="Search field to add…"
                                                             data-report-id={report.reportId}
                                                             data-mapping-id={mapping.id}
                                                             data-role="to"
                                                             onchange={handleFieldChange}
-                                                        ></lightning-combobox>
+                                                        ></c-searchable-combobox>
                                                     </template>
 
                                                     <!-- Footer: mode + remove -->

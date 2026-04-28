@@ -3,7 +3,6 @@ public with sharing class ReportUpdateController {
     public class UpdateTarget {
         @AuraEnabled public String reportId;
         @AuraEnabled public String reportName;
-        @AuraEnabled public String originalMetadataJson;
         @AuraEnabled public List<ReportUtils.FieldMapping> mappings;
     }
 
@@ -36,10 +35,13 @@ public with sharing class ReportUpdateController {
 
         for (UpdateTarget target : targets) {
             try {
-                String updatedJson = ReportUtils.analyzeAndUpdateMetadata(
-                    target.originalMetadataJson, target.mappings
-                );
-                if (updatedJson == null) continue; // no changes
+                // Re-fetch current metadata fresh — avoids serialization/transport issues
+                Reports.ReportDescribeResult dr   = Reports.ReportManager.describeReport(target.reportId);
+                Reports.ReportMetadata       meta = dr.getReportMetadata();
+                String currentJson = ReportUtils.serializeMeta(meta);
+
+                String updatedJson = ReportUtils.analyzeAndUpdateMetadata(currentJson, target.mappings);
+                if (updatedJson == null) continue; // no changes detected
 
                 HttpRequest req = new HttpRequest();
                 req.setEndpoint(instanceUrl + '/services/data/v62.0/analytics/reports/' + target.reportId);

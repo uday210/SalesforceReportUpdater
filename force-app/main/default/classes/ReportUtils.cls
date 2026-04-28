@@ -6,6 +6,49 @@ public with sharing class ReportUtils {
         @AuraEnabled public String mode; // 'replace' or 'keep-both'
     }
 
+    // Build a JSON string from Reports.ReportMetadata using getter methods.
+    // JSON.serialize(Reports.ReportMetadata) returns {} because the class has private
+    // fields, so we construct the map manually.
+    public static String serializeMeta(Reports.ReportMetadata meta) {
+        List<Object> gd = new List<Object>();
+        if (meta.getGroupingsDown() != null) {
+            for (Reports.GroupingInfo g : meta.getGroupingsDown()) {
+                gd.add(new Map<String, Object>{
+                    'name'            => g.getName(),
+                    'dateGranularity' => String.valueOf(g.getDateGranularity())
+                });
+            }
+        }
+        List<Object> ga = new List<Object>();
+        if (meta.getGroupingsAcross() != null) {
+            for (Reports.GroupingInfo g : meta.getGroupingsAcross()) {
+                ga.add(new Map<String, Object>{
+                    'name'            => g.getName(),
+                    'dateGranularity' => String.valueOf(g.getDateGranularity())
+                });
+            }
+        }
+        List<Object> filters = new List<Object>();
+        if (meta.getReportFilters() != null) {
+            for (Reports.ReportFilter f : meta.getReportFilters()) {
+                filters.add(new Map<String, Object>{
+                    'column'     => f.getColumn(),
+                    'operator'   => f.getOperator(),
+                    'value'      => f.getValue(),
+                    'filterType' => f.getFilterType()
+                });
+            }
+        }
+        return JSON.serialize(new Map<String, Object>{
+            'detailColumns'      => meta.getDetailColumns()  != null ? meta.getDetailColumns()  : new List<String>(),
+            'groupingsDown'      => gd,
+            'groupingsAcross'    => ga,
+            'reportFilters'      => filters,
+            'reportBooleanFilter'=> meta.getReportBooleanFilter(),
+            'aggregates'         => meta.getAggregates() != null ? meta.getAggregates() : new List<String>()
+        });
+    }
+
     public static Boolean fieldMatches(String fieldInReport, String searchField) {
         if (fieldInReport == null || searchField == null) return false;
         String upper  = fieldInReport.toUpperCase();
