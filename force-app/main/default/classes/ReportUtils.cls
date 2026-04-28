@@ -44,7 +44,7 @@ public with sharing class ReportUtils {
         if (meta.getSortBy() != null) {
             for (Reports.SortColumn sc : meta.getSortBy()) {
                 sortBy.add(new Map<String, Object>{
-                    'column'    => sc.getColumn(),
+                    'column'    => sc.getSortColumn(),
                     'sortOrder' => String.valueOf(sc.getSortOrder())
                 });
             }
